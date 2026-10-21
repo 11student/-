@@ -13,7 +13,7 @@
 ## 阶段二 选择并接入真实若依工程
 
 1. 核对 [官方 RuoYi-Vue 仓库](https://github.com/yangzongzhuan/RuoYi-Vue) 和所需前端来源，评估维护情况、部署环境、许可证及兼容性，记录选择的仓库、分支、标签或提交。
-2. 根据真实上游兼容矩阵确定 Java、Spring Boot、Vue、Node、数据库及其他运行环境；在决定之前保持版本未定，不沿用过时经验直接锁定。
+2. 根据真实上游兼容矩阵确定 Java、Spring Boot、Vue、Node 和已选择的 MySQL 的具体版本及其他运行环境；在决定之前保持版本未定，不沿用过时经验直接锁定。
 3. 接入前重新备份当前正式文档与工作区。将上游后端聚合工程置于 `backend/`，唯一前端置于 `frontend/`；保留上游许可证、来源与本地修改记录。导入时合并已有 README 和领域规划，不覆盖它们。
 4. 保留实际需要的 `ruoyi-admin/common/framework/system` 等原有模块；对 quartz、generator 或版本特有模块逐一核对用途与引用，不能仅删除目录使父 POM 失效。
 5. 通过真实父 POM 和依赖管理创建/登记 `ruoyi-education`，核对包根、组件与 Mapper 扫描、安全上下文和业务接口入口位置，保证无循环依赖。
