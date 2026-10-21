@@ -14,6 +14,7 @@ CREATE TABLE edu_term (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_term_id_org (id, organization_id),
     UNIQUE KEY uq_edu_term_org_code (organization_id, code),
     KEY idx_edu_term_org_dates (organization_id, starts_on, ends_on),
     CONSTRAINT chk_edu_term_dates CHECK (ends_on >= starts_on)
@@ -28,6 +29,7 @@ CREATE TABLE edu_official_course (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_official_course_id_org (id, organization_id),
     UNIQUE KEY uq_edu_official_course_org_code (organization_id, code),
     CONSTRAINT chk_edu_official_course_status CHECK (status IN ('ACTIVE', 'ARCHIVED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -100,12 +102,12 @@ CREATE TABLE edu_teaching_class (
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
     UNIQUE KEY uq_edu_teaching_class_org_term_code (organization_id, term_id, code),
-    KEY idx_edu_teaching_class_term (term_id),
-    KEY idx_edu_teaching_class_official (official_course_id),
-    CONSTRAINT fk_edu_teaching_class_term FOREIGN KEY (term_id)
-        REFERENCES edu_term (id),
-    CONSTRAINT fk_edu_teaching_class_official FOREIGN KEY (official_course_id)
-        REFERENCES edu_official_course (id),
+    KEY idx_edu_teaching_class_term_org (term_id, organization_id),
+    KEY idx_edu_teaching_class_official_org (official_course_id, organization_id),
+    CONSTRAINT fk_edu_teaching_class_term_org FOREIGN KEY (term_id, organization_id)
+        REFERENCES edu_term (id, organization_id),
+    CONSTRAINT fk_edu_teaching_class_official_org FOREIGN KEY (official_course_id, organization_id)
+        REFERENCES edu_official_course (id, organization_id),
     CONSTRAINT chk_edu_teaching_class_kind CHECK (class_kind IN ('FORMAL', 'TRIAL')),
     CONSTRAINT chk_edu_teaching_class_status CHECK (status IN ('DRAFT', 'ACTIVE', 'ARCHIVED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
