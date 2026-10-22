@@ -4,7 +4,7 @@
 
 ## 在 D 盘运行登录页
 
-本机联调库 `zhijiao_m0` 同时包含 V3.0 M0 教育业务表、若依 `sys_*`/`QRTZ_*` 基础表和演示账号；`zhijiao_login_dev` 是此前的独立登录测试库，当前启动配置已改用 `zhijiao_m0`。Redis 需在 `localhost:6379` 运行。`backend/.env` 已按团队要求纳入 Git，记录当前机器的联调连接；换机器时按实际数据库和 Redis 连接修改该文件，并设置自己的令牌密钥。[.env.example](.env.example) 提供字段示例。若依上游 SQL 位于 [sql/upstream/ruoyi](../sql/upstream/ruoyi/)；脚本含 `DROP TABLE`，只能用于新建的空测试库，不能对现有演示库重复执行。
+本机联调库 `zhijiao_m0` 同时包含 V3.0 M0 教育业务表、若依 `sys_*`/`QRTZ_*` 基础表和演示账号；`zhijiao_login_dev` 是此前的独立登录测试库，当前启动配置已改用 `zhijiao_m0`。Redis 需在 `localhost:6379` 运行。`backend/.env` 为本机私有配置，已被 Git 忽略；换机器时复制 [.env.example](.env.example) 为 `.env`，填写数据库连接与随机令牌密钥。若依上游 SQL 位于 [sql/upstream/ruoyi](../sql/upstream/ruoyi/)；脚本含 `DROP TABLE`，只能用于新建的空测试库，不能对现有演示库重复执行。
 
 在 PowerShell 中执行：
 
