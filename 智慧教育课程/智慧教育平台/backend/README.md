@@ -1,10 +1,10 @@
 # 后端工程与本地运行
 
-后端统一位于本目录。已接入 RuoYi-Vue `springboot3` 分支的若依 3.9.2（Spring Boot 3.5.16、Java 17 编译目标），包含六个基础模块。登录页由 `ruoyi-admin` 打包并通过同源地址 `/login.html` 提供；教学业务模块仍未实现。下表中“规划职责”描述后续教学业务的分工。
+后端统一位于本目录。已接入 RuoYi-Vue `springboot3` 分支的若依 3.9.2（Spring Boot 3.5.16、Java 17 编译目标），包含六个基础模块。登录页及三端原型导航运行页由 `ruoyi-admin` 同源提供；教学业务模块仍未实现。下表中“规划职责”描述后续教学业务的分工。
 
 ## 在 D 盘运行登录页
 
-本机已在独立 MySQL 库 `zhijiao_login_dev` 初始化若依 `sys_*` 和 `QRTZ_*` 表；教育业务演示库 `zhijiao_m0` 保持独立。Redis 需在 `localhost:6379` 运行。`backend/.env` 为本机私有配置，已被 Git 忽略；换机器时复制 [.env.example](.env.example) 为 `.env`，填写数据库连接与随机令牌密钥。若依上游 SQL 位于 [sql/upstream/ruoyi](../sql/upstream/ruoyi/)；脚本含 `DROP TABLE`，只能用于新建的空测试库，不能对现有演示库重复执行。
+本机联调库 `zhijiao_m0` 同时包含 V3.0 M0 教育业务表、若依 `sys_*`/`QRTZ_*` 基础表和演示账号；`zhijiao_login_dev` 是此前的独立登录测试库，当前启动配置已改用 `zhijiao_m0`。Redis 需在 `localhost:6379` 运行。`backend/.env` 为本机私有配置，已被 Git 忽略；换机器时复制 [.env.example](.env.example) 为 `.env`，填写数据库连接与随机令牌密钥。若依上游 SQL 位于 [sql/upstream/ruoyi](../sql/upstream/ruoyi/)；脚本含 `DROP TABLE`，只能用于新建的空测试库，不能对现有演示库重复执行。
 
 在 PowerShell 中执行：
 
@@ -14,7 +14,7 @@ mvn -B -pl ruoyi-admin -am package
 .\run-local.ps1
 ```
 
-打开 <http://127.0.0.1:8080/login.html>。页面调用若依真实的 `GET /captchaImage`、`POST /login`、`GET /getInfo`、`GET /getRouters`、`POST /logout`。本机已验证管理员账号的完整调用链。上游初始化脚本只创建 `admin` 和 `common` 角色；教师、学生账号和菜单仍需按项目身份方案建立，当前登录页选择这两种入口不会生成角色权限。测试库中的上游演示账号仅供本地联调，部署前必须更换凭据。
+打开 <http://127.0.0.1:8080/login.html>。页面调用若依真实的 `GET /captchaImage`、`POST /login`、`GET /getInfo`、`GET /getRouters`、`POST /logout`；登录时向 `/login` 发送所选 `role`（`admin`、`teacher` 或 `student`），服务端确认账号具有该角色后才发令牌。若依旧调用方不传 `role` 时仍沿用原有登录流程。登录后按角色进入 `/admin.html`、`/teacher.html` 或 `/student.html`，运行页每次加载重新验证令牌和角色。三个页面沿用 [`console-navigation-v1`](../prototypes/console-navigation-v1/) 的导航原型；其静态菜单还未绑定若依授权路由，内容区和教学业务接口仍待开发。`admin` 沿用若依超级管理员账号，教师与学生演示账号使用项目角色并与教学数据的 `user_id` 对应。本机已对三角色成功登录、错入口拒绝、身份查询和退出进行接口联调。联调凭据见 [三端演示账号](../docs/demo-login-accounts.txt)；实际部署须更换密码、创建受限管理员账号并按权限矩阵授权。
 
 ## 基础模块与依赖
 

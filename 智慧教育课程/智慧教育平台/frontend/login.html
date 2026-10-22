@@ -205,10 +205,6 @@
   .btn-login:hover { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(59, 109, 255, .42); }
   .btn-login:active { transform: translateY(0); }
   .btn-login:disabled { opacity: .65; cursor: wait; box-shadow: none; }
-  .btn-logout { border: 0; background: none; color: #3b6dff; cursor: pointer; font: inherit; }
-  .account-name { margin-top: 24px; font-size: 20px; font-weight: 700; color: #2b3446; }
-  .account-detail { margin-top: 10px; font-size: 14px; color: #5b6b80; line-height: 1.8; }
-  .account-detail strong { color: #2b3446; }
 
   .card-links {
     display: flex;
@@ -302,12 +298,6 @@
 
     <button type="submit" class="btn-login" id="loginBtn">登 录</button>
   </form>
-
-  <div id="accountPanel" hidden>
-    <div class="account-name" id="accountName"></div>
-    <div class="account-detail" id="accountDetail"></div>
-    <button type="button" class="btn-login" id="logoutBtn">退出登录</button>
-  </div>
 
   <div class="card-links" id="loginLinks">
     <span>忘记密码请联系教务管理员</span>
