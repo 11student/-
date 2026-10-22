@@ -27,6 +27,11 @@ public class LoginBody
      */
     private String uuid;
 
+    /**
+     * 登录入口角色（admin、teacher、student）；为空时沿用若依原有登录流程
+     */
+    private String role;
+
     public String getUsername()
     {
         return username;
@@ -65,5 +70,15 @@ public class LoginBody
     public void setUuid(String uuid)
     {
         this.uuid = uuid;
+    }
+
+    public String getRole()
+    {
+        return role;
+    }
+
+    public void setRole(String role)
+    {
+        this.role = role;
     }
 }

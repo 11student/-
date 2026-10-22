@@ -1,5 +1,6 @@
 package com.ruoyi.framework.web.service;
 
+import java.util.Set;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -36,6 +37,8 @@ import com.ruoyi.system.service.ISysUserService;
 @Component
 public class SysLoginService
 {
+    private static final Set<String> LOGIN_ROLES = Set.of("admin", "teacher", "student");
+
     @Autowired
     private TokenService tokenService;
 
@@ -51,6 +54,9 @@ public class SysLoginService
     @Autowired
     private ISysConfigService configService;
 
+    @Autowired
+    private SysPermissionService permissionService;
+
     /**
      * 登录验证
      * 
@@ -62,6 +68,19 @@ public class SysLoginService
      */
     public String login(String username, String password, String code, String uuid)
     {
+        return login(username, password, code, uuid, null);
+    }
+
+    /**
+     * 按所选入口登录；角色校验通过后才发放令牌。
+     * role 为空仅用于兼容若依原有调用方。
+     */
+    public String login(String username, String password, String code, String uuid, String role)
+    {
+        if (role != null && !LOGIN_ROLES.contains(role))
+        {
+            throw new ServiceException("无效的登录入口");
+        }
         // 验证码校验
         validateCaptcha(username, code, uuid);
         // 登录前置校验
@@ -92,8 +111,13 @@ public class SysLoginService
         {
             AuthenticationContextHolder.clearContext();
         }
-        AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.LOGIN_SUCCESS, MessageUtils.message("user.login.success")));
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        if (role != null && !permissionService.getRolePermission(loginUser.getUser()).contains(role))
+        {
+            AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.LOGIN_FAIL, "登录入口与账号角色不匹配"));
+            throw new ServiceException("此账号没有所选登录入口的权限");
+        }
+        AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.LOGIN_SUCCESS, MessageUtils.message("user.login.success")));
         recordLoginInfo(loginUser.getUserId());
         // 生成token
         return tokenService.createToken(loginUser);

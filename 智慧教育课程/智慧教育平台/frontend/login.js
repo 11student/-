@@ -129,6 +129,7 @@
         body: JSON.stringify({
           username: accountInput.value.trim(),
           password: passwordInput.value,
+          role: selectedRole,
           code: captchaEnabled ? captchaInput.value.trim() : '',
           uuid: captchaEnabled ? captchaUuid : ''
         })
