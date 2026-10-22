@@ -98,40 +98,17 @@
     await api('/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
   }
 
-  function showAccount(info, routes) {
-    form.hidden = true;
-    document.getElementById('loginLinks').hidden = true;
-    document.getElementById('accountPanel').hidden = false;
-    const user = info.user || {};
-    const name = user.nickName || user.userName || '已登录用户';
-    const roleNames = (info.roles || []).join('、') || '无角色';
-    const routeCount = Array.isArray(routes.data) ? routes.data.length : 0;
-    document.getElementById('accountName').textContent = `欢迎，${name}`;
-    document.getElementById('accountDetail').replaceChildren();
-    const detail = document.getElementById('accountDetail');
-    const rows = [
-      ['账号', user.userName || '—'],
-      ['服务端角色', roleNames],
-      ['授权菜单', `${routeCount} 个一级入口`]
-    ];
-    rows.forEach(([label, value]) => {
-      const line = document.createElement('div');
-      const strong = document.createElement('strong');
-      strong.textContent = `${label}：`;
-      line.append(strong, document.createTextNode(value));
-      detail.appendChild(line);
-    });
-    showStatus('登录成功，身份与菜单已由后端验证。', true);
-  }
-
   async function loadIdentity(token, role) {
     const headers = { Authorization: `Bearer ${token}` };
     const info = await api('/getInfo', { headers });
     if (!Array.isArray(info.roles) || !info.roles.includes(role)) {
       throw new Error(`此账号没有${roleInfo[role].label}角色，请选择正确入口或联系管理员`);
     }
-    const routes = await api('/getRouters', { headers });
-    return { info, routes };
+    await api('/getRouters', { headers });
+  }
+
+  function openRolePage(role) {
+    window.location.replace(`/${role}.html`);
   }
 
   form.addEventListener('submit', async event => {
@@ -158,11 +135,11 @@
       });
       if (!result.token) throw new Error('登录成功但未收到令牌');
       token = result.token;
-      const { info, routes } = await loadIdentity(token, selectedRole);
+      await loadIdentity(token, selectedRole);
       sessionStorage.setItem(tokenKey, token);
       sessionStorage.setItem(roleKey, selectedRole);
       passwordInput.value = '';
-      showAccount(info, routes);
+      openRolePage(selectedRole);
     } catch (error) {
       if (token) {
         try { await logoutOnServer(token); } catch { /* 清理本页令牌 */ }
@@ -180,34 +157,26 @@
     button.addEventListener('click', () => selectRole(button.dataset.role));
   });
   document.getElementById('captchaRefresh').addEventListener('click', loadCaptcha);
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
-    const token = sessionStorage.getItem(tokenKey);
-    let serverConfirmed = true;
-    try { await logoutOnServer(token); } catch { serverConfirmed = false; }
-    clearSession();
-    document.getElementById('accountPanel').hidden = true;
-    document.getElementById('loginLinks').hidden = false;
-    form.hidden = false;
-    accountInput.value = '';
-    passwordInput.value = '';
-    await loadCaptcha();
-    showStatus(serverConfirmed ? '已退出登录。' : '本页已退出，服务端退出状态未确认。', serverConfirmed);
-  });
-
   async function initialize() {
     const token = sessionStorage.getItem(tokenKey);
     const role = sessionStorage.getItem(roleKey);
     if (token && roleInfo[role]) {
       selectRole(role);
       try {
-        const { info, routes } = await loadIdentity(token, role);
-        showAccount(info, routes);
+        await loadIdentity(token, role);
+        openRolePage(role);
         return;
       } catch {
         clearSession();
       }
     }
     await loadCaptcha();
+    const logout = new URLSearchParams(window.location.search).get('logout');
+    if (logout === 'ok') {
+      showStatus('已退出登录。', true);
+    } else if (logout === 'unconfirmed') {
+      showStatus('本页已退出，服务端退出状态未确认。');
+    }
   }
 
   initialize();

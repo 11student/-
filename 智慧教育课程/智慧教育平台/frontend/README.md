@@ -1,12 +1,15 @@
 # 前端架构规划
 
-本目录是前端工程工作区。当前 `login.html`、`login.js` 是由后端同源提供的登录联调页，使用若依真实认证接口；运行方式见 [后端说明](../backend/README.md)。尚未接入若依 Vue 前端、创建依赖清单或选择 Vue 版本，三端业务页面仍是规划内容。
+本目录是前端工程工作区。当前 `login.html`、`login.js` 以及 `admin.html`、`teacher.html`、`student.html` 是由后端同源提供的身份联调页，使用若依真实认证与角色菜单接口；运行方式见 [后端说明](../backend/README.md)。三端入口页仅展示已验证身份与授权菜单名称，不提供尚未实现的业务操作。尚未接入若依 Vue 前端、创建依赖清单或选择 Vue 版本，三端业务页面仍是规划内容。
 
 ## 三端页面和公共能力
 
 ```text
 frontend/
 ├── README.md
+├── login.html、login.js、logo.png
+├── admin.html、teacher.html、student.html
+├── role-home.js、role-home.css
 └── src/
     ├── views/education/
     │   ├── teacher/
