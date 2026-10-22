@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $configPath = Join-Path $PSScriptRoot '.env'
 $jarPath = Join-Path $PSScriptRoot 'ruoyi-admin/target/ruoyi-admin.jar'
 
