@@ -4,7 +4,7 @@
 
 ## 登录后端
 
-沿用若依原生登录链路，不为教师、学生、管理员分别建立账号体系。前端登录页应调用：
+沿用若依原生登录链路，不为教师、学生、管理员分别建立账号体系。[联调登录页](../frontend/login.html)已由 `ruoyi-admin` 打包为 `/login.html`，调用：
 
 | 请求 | 用途 | 说明 |
 |---|---|---|
@@ -14,15 +14,15 @@
 | `GET /getRouters` | 查询授权菜单 | 同样携带令牌，按服务端菜单权限生成路由 |
 | `POST /logout` | 退出 | 携带令牌；若依退出处理器清理当前登录状态 |
 
-前端角色选项只能辅助展示或跳转，不能决定服务端身份。若依用户、角色、菜单和数据权限是身份来源；课程和教学班的对象范围校验需在后续教学接口实现。上游默认采用数学验证码、密码连续失败 5 次锁定 10 分钟；静态登录原型中的验证码和锁定提示尚未与真实接口对齐。
+前端角色选项只能辅助展示或跳转，不能决定服务端身份；联调页会在登录后核对真实角色，不匹配时退出。若依用户、角色、菜单和数据权限是身份来源；课程和教学班的对象范围校验需在后续教学接口实现。上游默认采用数学验证码、密码连续失败 5 次锁定 10 分钟。`sql` 分支的 `demo-v3-m0-seed.sql` 只写教学模拟记录，教师和学生 ID 是占位值，不会创建若依 `sys_user` 或 `teacher`、`student` 角色。
 
 ## 构建与运行前置条件
 
 在 `backend/` 执行 `mvn -B -pl ruoyi-admin -am package`。此命令已在本分支完成，六个子模块和父工程均构建成功；上游当前没有可执行测试，因此构建成功不代表登录联调成功。
 
-启动前需准备独立 MySQL 测试库和 Redis，并由本机环境变量提供 `RUOYI_DB_URL`、`RUOYI_DB_USERNAME`、`RUOYI_DB_PASSWORD`、`RUOYI_TOKEN_SECRET`。数据库 URL 应指向已初始化的测试库，例如 `jdbc:mysql://127.0.0.1:3306/<test_database>?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai`；占位符不是可运行值。Redis 默认连接 `localhost:6379` 的 15 号库，可通过 `RUOYI_REDIS_HOST`、`RUOYI_REDIS_PORT`、`RUOYI_REDIS_DATABASE`、`RUOYI_REDIS_PASSWORD` 调整。令牌密钥请使用足够长的随机值，不要提交到 Git。
+启动前需准备独立 MySQL 测试库和 Redis，并由本机环境变量提供 `RUOYI_DB_URL`、`RUOYI_DB_USERNAME`、`RUOYI_DB_PASSWORD`、`RUOYI_TOKEN_SECRET`。数据库 URL 应指向已初始化若依系统表的测试库，例如 `jdbc:mysql://127.0.0.1:3306/<test_database>?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai`；占位符不是可运行值。Redis 默认连接 `localhost:6379` 的 15 号库，可通过 `RUOYI_REDIS_HOST`、`RUOYI_REDIS_PORT`、`RUOYI_REDIS_DATABASE`、`RUOYI_REDIS_PASSWORD` 调整。令牌密钥请使用足够长的随机值，不要提交到 Git。Windows 本地联调可复制 [配置模板](.env.example)为被 Git 忽略的 `backend/.env`，填好后运行 [启动脚本](run-local.ps1)；脚本只在当前进程中注入环境变量，退出时恢复原值，不回显凭据。
 
-上游系统表和 Quartz 表脚本保存在 `sql/upstream/ruoyi/`，尚未执行。确认独立测试库后，按 `ry_20260417.sql`、`quartz.sql` 的顺序初始化，再由环境变量配置连接并在 `backend/` 执行 `java -jar ruoyi-admin/target/ruoyi-admin.jar`。上游系统表脚本包含演示账号与角色，联调前需在独立测试环境重设凭据，不能直接作为正式账号使用。本轮没有测试库账号，因此没有启动服务或验证真实登录。教学业务表草案与这两份上游脚本分开管理。
+上游系统表和 Quartz 表脚本保存在 `sql/upstream/ruoyi/`。两份脚本包含 `DROP TABLE`，仅能在确认无须保留数据的独立测试库中按 `ry_20260417.sql`、`quartz.sql` 顺序初始化，不能直接对现有演示库执行。配置好环境变量后，在 `backend/` 执行 `java -jar ruoyi-admin/target/ruoyi-admin.jar`，同源访问 `http://localhost:8080/login.html`。上游系统表脚本包含演示账号与角色，联调前需在独立测试环境重设凭据，不能直接作为正式账号使用。当前本机 MySQL 与 Redis 服务已运行，但尚未取得本地数据库连接配置，真实登录结果仍待验证。教学业务表与这两份上游脚本分开管理。
 
 ## 基础模块与依赖
 

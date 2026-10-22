@@ -57,6 +57,20 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/../../frontend</directory>
+                <targetPath>static</targetPath>
+                <includes>
+                    <include>login.html</include>
+                    <include>login.js</include>
+                    <include>logo.png</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
