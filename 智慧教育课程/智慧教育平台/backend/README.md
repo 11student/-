@@ -1,6 +1,20 @@
-# 后端架构规划
+# 后端工程与本地运行
 
-采用若依 RuoYi + Spring Boot 多模块架构，后端正式工作区统一为本目录。**尚未接入任何若依源码，本轮没有 Maven 工程、启动类、配置或业务实现。** 下表是职责和依赖规划，不是现存可构建模块清单。
+后端统一位于本目录。已接入 RuoYi-Vue `springboot3` 分支的若依 3.9.2（Spring Boot 3.5.16、Java 17 编译目标），包含六个基础模块。登录页由 `ruoyi-admin` 打包并通过同源地址 `/login.html` 提供；教学业务模块仍未实现。下表中“规划职责”描述后续教学业务的分工。
+
+## 在 D 盘运行登录页
+
+本机已在独立 MySQL 库 `zhijiao_login_dev` 初始化若依 `sys_*` 和 `QRTZ_*` 表；教育业务演示库 `zhijiao_m0` 保持独立。Redis 需在 `localhost:6379` 运行。`backend/.env` 为本机私有配置，已被 Git 忽略；换机器时复制 [.env.example](.env.example) 为 `.env`，填写数据库连接与随机令牌密钥。若依上游 SQL 位于 [sql/upstream/ruoyi](../sql/upstream/ruoyi/)；脚本含 `DROP TABLE`，只能用于新建的空测试库，不能对现有演示库重复执行。
+
+在 PowerShell 中执行：
+
+```powershell
+cd 'D:\智慧教育课程-GitHub\智慧教育课程\智慧教育平台\backend'
+mvn -B -pl ruoyi-admin -am package
+.\run-local.ps1
+```
+
+打开 <http://127.0.0.1:8080/login.html>。页面调用若依真实的 `GET /captchaImage`、`POST /login`、`GET /getInfo`、`GET /getRouters`、`POST /logout`。本机已验证管理员账号的完整调用链。上游初始化脚本只创建 `admin` 和 `common` 角色；教师、学生账号和菜单仍需按项目身份方案建立，当前登录页选择这两种入口不会生成角色权限。测试库中的上游演示账号仅供本地联调，部署前必须更换凭据。
 
 ## 基础模块与依赖
 
@@ -11,14 +25,14 @@
 | ruoyi-framework | 上游安全、Web 配置、权限与基础设施整合 | 沿用选定版本依赖；不能反向依赖 ruoyi-education |
 | ruoyi-admin | 上游应用入口、管理端装配和对外接入 | 装配基础框架及教育业务，不承担九领域的核心逻辑 |
 | ruoyi-education | 独立的教学业务 Maven 模块（未来接入） | 计划依赖 common；仅在需要用户/组织服务时依赖 system；不依赖 admin |
-| ruoyi-quartz 等 | 可能存在的调度等附加能力 | 根据真实版本和任务需要决定；现阶段不建立空模块 |
-| ruoyi-generator 等 | 可能存在的开发辅助能力 | 根据实际版本和团队需求评审；不得据此批量生成无用占位代码 |
+| ruoyi-quartz | 上游调度模块，已导入 | 本轮只供基础工程运行，不配置教学调度任务 |
+| ruoyi-generator | 上游代码生成模块，已导入 | 本轮不生成教学占位代码 |
 
-已核对 [若依官方 RuoYi-Vue 仓库](https://github.com/yangzongzhuan/RuoYi-Vue) 的基础模块目录。该来源仅供后续选型核对，不代表本项目已选定其当前分支或版本。
+基础模块来自 [若依官方 RuoYi-Vue 仓库](https://github.com/yangzongzhuan/RuoYi-Vue) 的固定提交 `a51a838b71b446ea27256900efe7ed2faa2a02fd`。
 
-规划装配方向：`ruoyi-admin → ruoyi-framework / ruoyi-education`，`ruoyi-education → ruoyi-common`，必要时 `ruoyi-education → ruoyi-system`。上游基础模块之间的实际依赖以导入版本为准；不在本轮伪造其 POM。教育模块如需安全框架适配，优先在入口/适配边界完成，不创建 framework 与 education 的循环依赖。
+后续装配方向：`ruoyi-admin → ruoyi-framework / ruoyi-education`，`ruoyi-education → ruoyi-common`，必要时 `ruoyi-education → ruoyi-system`。上游基础模块之间的实际依赖以已导入的 POM 为准。教育模块如需安全框架适配，优先在入口/适配边界完成，不创建 framework 与 education 的循环依赖。
 
-Controller 所属位置在真实若依接入时统一：若上游约定控制器集中于 admin，则入口放 admin、业务留在 education；如采用业务模块内控制器，则先核对组件扫描与安全配置。两处不得重复暴露同一接口。
+当前登录 Controller 位于 `ruoyi-admin`。新增教学接口时先核对组件扫描与安全配置，业务留在 education；两处不得重复暴露同一接口。
 
 ## 教育业务领域
 
