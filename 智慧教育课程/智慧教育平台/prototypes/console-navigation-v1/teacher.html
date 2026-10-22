@@ -51,6 +51,10 @@
   .menu-group.collapsed .arrow { transform: rotate(-90deg); }
   .menu-group.collapsed .menu-items { display: none; }
   .menu-items { list-style: none; }
+  .menu-subhead {
+    list-style: none;
+    padding: 10px 16px 4px 34px; font-size: 12px; color: #b0b0b0;
+  }
   .menu-item {
     display: block; text-decoration: none;
     padding: 9px 16px 9px 34px; font-size: 13px; color: #555;
@@ -128,12 +132,8 @@ var ROLE = 'teacher';
 var currentGi = 0, currentIi = 0;
 
 var MENU = [
-  { name: '教学工作台', children: ['教学首页', '今日教学与快捷上课', '待处理事项', '课程消息与公告'] },
-  { name: '我的课程', children: ['课程列表 / 创建课程', '课程建设', '课程资源', '题库与评分标准', '教学班与课程发布', '课程共享与复用'] },
-  { name: '课前准备', children: ['授课方案 / 备课包', '预习内容发布', '预习任务 / 预习测验', '课堂活动预设', '预习学情 / 课前诊断', 'AI 备课助手'] },
-  { name: '课堂教学', children: ['开始上课 / 上课控制台', 'PPT 讲授与内容演示', '学生同步跟课', '课堂活动中心', '课堂签到', '随堂题与即时检测', '课堂小作业 / 随堂任务', '即时学情面板', '课堂记录 / 结束归档', '扩展课堂互动', '音视频直播 / 录播', '实时 AI 助教'] },
-  { name: '课后作业与反馈', children: ['作业发布', '提交与批改', '成绩确认与评价发布', '作业分析与错题复盘', '补学 / 巩固任务', '课后资料与课堂回顾'] },
-  { name: '学情分析与教学改进', children: ['班级学情总览', '学生个人学情', '知识点学习证据', '课堂/作业复盘', '下一轮教学调整', '基础教学数据导出'] }
+  { name: '教学工作台', children: ['教学总览', '今日课程 / 快捷上课', '教学待办', '班级消息 / 公告', 'AI 教学助手'] },
+  { name: '我的课程', subhead: { at: 1, label: '课程详情 · 内页签' }, children: ['课程列表 / 创建课程', '课程概览', '课程建设', '课前准备', '课堂教学', '课后作业与反馈', '学情分析与教学改进', 'AI 教学助手'] }
 ];
 
 function render() {
@@ -146,6 +146,9 @@ function render() {
     html += '<div class="menu-group-title"><span>' + g.name + '</span><span class="arrow">▾</span></div>';
     html += '<ul class="menu-items">';
     for (var j = 0; j < g.children.length; j++) {
+      if (g.subhead && g.subhead.at === j) {
+        html += '<li class="menu-subhead">' + g.subhead.label + '</li>';
+      }
       html += '<li><a class="menu-item" href="?g=' + i + '&i=' + j + '">' + g.children[j] + '</a></li>';
     }
     html += '</ul></div>';

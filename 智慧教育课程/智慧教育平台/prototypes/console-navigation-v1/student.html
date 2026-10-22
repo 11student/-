@@ -45,6 +45,10 @@
   .menu-group.collapsed .arrow { transform: rotate(-90deg); }
   .menu-group.collapsed .menu-items { display: none; }
   .menu-items { list-style: none; }
+  .menu-subhead {
+    list-style: none;
+    padding: 10px 16px 4px 34px; font-size: 12px; color: #b0b0b0;
+  }
   .menu-item {
     display: block; text-decoration: none;
     padding: 9px 16px 9px 34px; font-size: 13px; color: #555;
@@ -120,12 +124,8 @@ var ROLE = 'student';
 var currentGi = 0, currentIi = 0;
 
 var MENU = [
-  { name: '学习首页', children: ['今日待办', '正在上课', '学习通知'] },
-  { name: '我的课程', children: ['在修课程', '课程主页与章节', '课程学习资源'] },
-  { name: '课前学习', children: ['我的预习', '预习内容学习', '预习测验', '预习反馈'] },
-  { name: '同步课堂', children: ['加入课堂', '跟随老师看课件', '课堂签到', '实时答题', '随堂小作业', '我的课堂记录', '课堂提问/讨论'] },
-  { name: '课后学习', children: ['我的作业', '作答与提交', '评价与反馈', '我的错题本', '补学与巩固', '课后课堂回顾'] },
-  { name: '我的学习与智能答疑', children: ['个人学习概览', '学习轨迹 / 学习报告', '课程 AI 答疑', '错题 / 课件一键讲解', '个性化学习推荐'] }
+  { name: '学习工作台', children: ['学习总览 / 今日待办', '正在上课 / 一键加入', '作业与预习截止提醒', '学习通知 / 课程公告', 'AI 学习助手'] },
+  { name: '我的课程', subhead: { at: 1, label: '课程详情 · 内页签' }, children: ['在修课程列表', '课程概览', '课程资料', '课前学习', '同步课堂', '课后学习', '我的学情', 'AI 学习助手'] }
 ];
 
 function render() {
@@ -138,6 +138,9 @@ function render() {
     html += '<div class="menu-group-title"><span>' + g.name + '</span><span class="arrow">▾</span></div>';
     html += '<ul class="menu-items">';
     for (var j = 0; j < g.children.length; j++) {
+      if (g.subhead && g.subhead.at === j) {
+        html += '<li class="menu-subhead">' + g.subhead.label + '</li>';
+      }
       html += '<li><a class="menu-item" href="?g=' + i + '&i=' + j + '">' + g.children[j] + '</a></li>';
     }
     html += '</ul></div>';
