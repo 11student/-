@@ -1,17 +1,12 @@
 # 前端架构规划
 
-本目录是未来唯一前端工程工作区。当前已有可联调的静态 [登录页](login.html)及 [接口脚本](login.js)，由后端 Maven 构建打包并从 `/login.html` 提供；尚未接入完整若依 Vue 前端，教学业务页面仍处于规划阶段。
-
-登录页请求同源的若依 `/captchaImage`、`/login`、`/getInfo`、`/getRouters` 和 `/logout`。选择管理员、教师或学生入口后，页面以 `/getInfo` 返回的真实角色核对身份；入口选择本身不授予权限。登录成功后仅展示账号、角色和授权菜单数量，完整工作台尚未实现。令牌仅保存在当前浏览器标签的 `sessionStorage` 中，退出时调用服务端退出接口并清除本地令牌。
+本目录是未来唯一前端工程工作区，当前仅创建职责清晰的目录。尚未接入若依前端、创建依赖清单或选择 Vue 版本，不能安装依赖或启动应用。
 
 ## 三端页面和公共能力
 
 ```text
 frontend/
 ├── README.md
-├── login.html
-├── login.js
-├── logo.png
 └── src/
     ├── views/education/
     │   ├── teacher/
@@ -29,7 +24,7 @@ frontend/
 | src/api/education | 按 course/resource/prepare/classroom/activity/assignment/learning/analysis/ai 组织业务请求；同一接口由各端复用 |
 | src/components/education | 课程/班级上下文选择、资源预览、题目作答、任务状态、课堂公共展示等确有复用价值的组件 |
 
-教学业务页面和 API 文件尚未生成；具体文件扩展名、状态管理方式、路由组织和组件命名以最终若依前端版本为准。现有登录页可在 Vue 工程接入后迁移，不另建一套身份系统。
+不提前生成这些页面或 API 文件；具体文件扩展名、状态管理方式、路由组织和组件命名以最终若依前端版本为准。
 
 ## 一套基础设施
 

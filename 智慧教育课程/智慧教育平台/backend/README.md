@@ -1,28 +1,6 @@
-# 后端工程与架构规划
+# 后端架构规划
 
-采用若依 RuoYi + Spring Boot 多模块架构，后端正式工作区统一为本目录。已接入官方 `RuoYi-Vue` 的 `springboot3` 分支，固定来源提交为 [`a51a838b71b446ea27256900efe7ed2faa2a02fd`](https://github.com/yangzongzhuan/RuoYi-Vue/commit/a51a838b71b446ea27256900efe7ed2faa2a02fd)，若依版本 3.9.2、Spring Boot 3.5.16、Java 编译目标 17。保留了上游 `LICENSE`；当前导入六个后端模块、根 `pom.xml` 和 [上游数据库脚本](../sql/upstream/ruoyi/)。教学业务模块仍是规划目录，未加入 Maven 构建。
-
-## 登录后端
-
-沿用若依原生登录链路，不为教师、学生、管理员分别建立账号体系。[联调登录页](../frontend/login.html)已由 `ruoyi-admin` 打包为 `/login.html`，调用：
-
-| 请求 | 用途 | 说明 |
-|---|---|---|
-| `GET /captchaImage` | 获取验证码 | 返回 `captchaEnabled`；启用时返回 `uuid` 和 Base64 图片 `img` |
-| `POST /login` | 登录 | JSON 字段为 `username`、`password`、`code`、`uuid`；成功返回 `token` |
-| `GET /getInfo` | 查询登录用户 | `Authorization: Bearer <token>`；返回服务端角色 `roles` 与权限 `permissions` |
-| `GET /getRouters` | 查询授权菜单 | 同样携带令牌，按服务端菜单权限生成路由 |
-| `POST /logout` | 退出 | 携带令牌；若依退出处理器清理当前登录状态 |
-
-前端角色选项只能辅助展示或跳转，不能决定服务端身份；联调页会在登录后核对真实角色，不匹配时退出。若依用户、角色、菜单和数据权限是身份来源；课程和教学班的对象范围校验需在后续教学接口实现。上游默认采用数学验证码、密码连续失败 5 次锁定 10 分钟。`sql` 分支的 `demo-v3-m0-seed.sql` 只写教学模拟记录，教师和学生 ID 是占位值，不会创建若依 `sys_user` 或 `teacher`、`student` 角色。
-
-## 构建与运行前置条件
-
-在 `backend/` 执行 `mvn -B -pl ruoyi-admin -am package`。此命令已在本分支完成，六个子模块和父工程均构建成功；上游当前没有可执行测试，因此构建成功不代表登录联调成功。
-
-启动前需准备独立 MySQL 测试库和 Redis，并由本机环境变量提供 `RUOYI_DB_URL`、`RUOYI_DB_USERNAME`、`RUOYI_DB_PASSWORD`、`RUOYI_TOKEN_SECRET`。数据库 URL 应指向已初始化若依系统表的测试库，例如 `jdbc:mysql://127.0.0.1:3306/<test_database>?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai`；占位符不是可运行值。Redis 默认连接 `localhost:6379` 的 15 号库，可通过 `RUOYI_REDIS_HOST`、`RUOYI_REDIS_PORT`、`RUOYI_REDIS_DATABASE`、`RUOYI_REDIS_PASSWORD` 调整。令牌密钥请使用足够长的随机值，不要提交到 Git。Windows 本地联调可复制 [配置模板](.env.example)为被 Git 忽略的 `backend/.env`，填好后运行 [启动脚本](run-local.ps1)；脚本只在当前进程中注入环境变量，退出时恢复原值，不回显凭据。
-
-上游系统表和 Quartz 表脚本保存在 `sql/upstream/ruoyi/`。两份脚本包含 `DROP TABLE`，仅能在确认无须保留数据的独立测试库中按 `ry_20260417.sql`、`quartz.sql` 顺序初始化，不能直接对现有演示库执行。配置好环境变量后，在 `backend/` 执行 `java -jar ruoyi-admin/target/ruoyi-admin.jar`，同源访问 `http://localhost:8080/login.html`。上游系统表脚本包含演示账号与角色，联调前需在独立测试环境重设凭据，不能直接作为正式账号使用。当前本机 MySQL 与 Redis 服务已运行，但尚未取得本地数据库连接配置，真实登录结果仍待验证。教学业务表与这两份上游脚本分开管理。
+采用若依 RuoYi + Spring Boot 多模块架构，后端正式工作区统一为本目录。**尚未接入任何若依源码，本轮没有 Maven 工程、启动类、配置或业务实现。** 下表是职责和依赖规划，不是现存可构建模块清单。
 
 ## 基础模块与依赖
 
@@ -33,14 +11,14 @@
 | ruoyi-framework | 上游安全、Web 配置、权限与基础设施整合 | 沿用选定版本依赖；不能反向依赖 ruoyi-education |
 | ruoyi-admin | 上游应用入口、管理端装配和对外接入 | 装配基础框架及教育业务，不承担九领域的核心逻辑 |
 | ruoyi-education | 独立的教学业务 Maven 模块（未来接入） | 计划依赖 common；仅在需要用户/组织服务时依赖 system；不依赖 admin |
-| ruoyi-quartz | 上游调度模块，已导入 | 保留父 POM 依赖；本轮未配置调度任务 |
-| ruoyi-generator | 上游代码生成模块，已导入 | 保留父 POM 依赖；本轮未用其生成教学占位代码 |
+| ruoyi-quartz 等 | 可能存在的调度等附加能力 | 根据真实版本和任务需要决定；现阶段不建立空模块 |
+| ruoyi-generator 等 | 可能存在的开发辅助能力 | 根据实际版本和团队需求评审；不得据此批量生成无用占位代码 |
 
-导入内容以固定提交为准，不应把上游同名标签或其他分支直接当作本工程的依赖版本。本地改动集中在数据库、Redis 和令牌配置的环境变量化、关闭 Druid 监控页面，以及让缺失验证码按验证失败处理；其余登录实现保持上游逻辑。
+已核对 [若依官方 RuoYi-Vue 仓库](https://github.com/yangzongzhuan/RuoYi-Vue) 的基础模块目录。该来源仅供后续选型核对，不代表本项目已选定其当前分支或版本。
 
-后续装配方向：`ruoyi-admin → ruoyi-framework / ruoyi-education`，`ruoyi-education → ruoyi-common`，必要时 `ruoyi-education → ruoyi-system`。上游基础模块之间的实际依赖以已导入的父 POM 为准。教育模块如需安全框架适配，优先在入口/适配边界完成，不创建 framework 与 education 的循环依赖。
+规划装配方向：`ruoyi-admin → ruoyi-framework / ruoyi-education`，`ruoyi-education → ruoyi-common`，必要时 `ruoyi-education → ruoyi-system`。上游基础模块之间的实际依赖以导入版本为准；不在本轮伪造其 POM。教育模块如需安全框架适配，优先在入口/适配边界完成，不创建 framework 与 education 的循环依赖。
 
-当前上游登录 Controller 位于 `ruoyi-admin`。新增教学接口时先核对组件扫描与安全配置，业务逻辑放 `ruoyi-education`；两处不得重复暴露同一接口。
+Controller 所属位置在真实若依接入时统一：若上游约定控制器集中于 admin，则入口放 admin、业务留在 education；如采用业务模块内控制器，则先核对组件扫描与安全配置。两处不得重复暴露同一接口。
 
 ## 教育业务领域
 
@@ -89,4 +67,4 @@ ruoyi-education/
 
 ## 后续接入要求
 
-创建教学业务模块时由现有父 POM 注册，并检查依赖方向、包扫描、Mapper 扫描和权限接入；数据库与前端联调应在独立测试环境完成。完整步骤见 [开发路线](../docs/development-plan.md)。
+接入真实若依时记录上游仓库、版本/提交、许可证和模块差异；由真实父 POM 注册教育模块并检查依赖方向、包扫描、Mapper 扫描和权限接入。启动与构建命令只能依据实际工程验证后填写。完整步骤见 [开发路线](../docs/development-plan.md)。
