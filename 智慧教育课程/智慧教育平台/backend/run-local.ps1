@@ -11,7 +11,8 @@ if (-not (Test-Path -LiteralPath $jarPath -PathType Leaf)) {
 
 $allowed = @(
     'RUOYI_DB_URL', 'RUOYI_DB_USERNAME', 'RUOYI_DB_PASSWORD', 'RUOYI_TOKEN_SECRET',
-    'RUOYI_REDIS_HOST', 'RUOYI_REDIS_PORT', 'RUOYI_REDIS_DATABASE', 'RUOYI_REDIS_PASSWORD'
+    'RUOYI_REDIS_HOST', 'RUOYI_REDIS_PORT', 'RUOYI_REDIS_DATABASE', 'RUOYI_REDIS_PASSWORD',
+    'RUOYI_JAVA_UNIXDOMAIN_TMPDIR'
 )
 $values = @{}
 foreach ($line in Get-Content -LiteralPath $configPath -Encoding UTF8) {
@@ -36,7 +37,16 @@ try {
         $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
         [Environment]::SetEnvironmentVariable($key, $values[$key], 'Process')
     }
-    & java -jar $jarPath
+    $javaArgs = @()
+    if ($values.ContainsKey('RUOYI_JAVA_UNIXDOMAIN_TMPDIR') -and $values['RUOYI_JAVA_UNIXDOMAIN_TMPDIR']) {
+        $udsPath = $values['RUOYI_JAVA_UNIXDOMAIN_TMPDIR']
+        if (-not (Test-Path -LiteralPath $udsPath -PathType Container)) {
+            throw 'RUOYI_JAVA_UNIXDOMAIN_TMPDIR 指向的目录不存在。'
+        }
+        $javaArgs += "-Djdk.net.unixdomain.tmpdir=$udsPath"
+    }
+    $javaArgs += @('-jar', $jarPath)
+    & java @javaArgs
     if ($LASTEXITCODE -ne 0) { throw "后端进程退出，代码：$LASTEXITCODE" }
 }
 finally {
