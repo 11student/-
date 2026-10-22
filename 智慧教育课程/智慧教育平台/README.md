@@ -2,7 +2,7 @@
 
 本项目面向教师、学生与学校管理员，规划将课程建设、课前准备、PPT 授课与同步跟课、课堂活动、课后作业和学情反馈整合为连续的教学工作台。本机项目根目录为 `D:\智慧教育课程-GitHub\智慧教育课程\智慧教育平台`。
 
-**当前状态：登录联调阶段。** 已接入若依 3.9.2 后端、静态登录页和三端身份入口页；本机独立登录测试库已验证验证码、登录、身份、菜单和退出接口。`zhijiao_m0` 已有 V3.0 M0 教育业务表和模拟数据，但教学业务接口与三端业务工作台尚未实现。运行步骤见 [后端工程与本地运行](backend/README.md)。
+**当前状态：登录联调阶段。** 已接入若依 3.9.2 后端、静态登录页，以及由 `console-navigation-v1` 三端导航原型改造的运行页面；本机独立登录测试库已验证验证码、登录、身份、菜单和退出接口。`zhijiao_m0` 已有 V3.0 M0 教育业务表和模拟数据，但教学业务接口尚未实现，三端页面内容区仍是原型占位。运行步骤见 [后端工程与本地运行](backend/README.md)。
 
 ## 教学业务闭环
 
@@ -21,7 +21,7 @@
 ## 技术架构规划
 
 - 后端已导入若依 RuoYi-Vue `springboot3` 分支固定提交，版本 3.9.2，Spring Boot 3.5.16，Java 17 编译目标；`ruoyi-education` 暂为教学业务规划目录。
-- `frontend/login.html` 和三端身份入口页由后端同源提供；教师、学生和管理员业务工作台及正式前端工程仍待开发。
+- `frontend/login.html` 和三端原型导航运行页由后端同源提供；原型导航尚未绑定授权路由，页面业务内容及正式前端工程仍待开发。
 - 数据库工作统一置于 `sql/`；[V3.0 M0 数据库设计](docs/database-design.md)与两段教育业务建表脚本覆盖首版教学闭环。本机 `zhijiao_m0` 为教育业务演示库，`zhijiao_login_dev` 为独立若依登录测试库。
 - 课件转换、实时同步、文件存储与 AI 适配均为后续技术评审内容，暂不指定服务或协议实现。
 - 当前后端可用 Maven 构建，运行需要 MySQL 8、Redis 和本地私有 `.env`；Vue 版本尚未选定。
@@ -48,7 +48,7 @@
 │   ├── README.md
 │   ├── login.html、login.js、logo.png
 │   ├── admin.html、teacher.html、student.html
-│   ├── role-home.js、role-home.css
+│   ├── role-home.js
 │   └── src/
 │       ├── views/education/{teacher,student,admin}/
 │       ├── api/education/

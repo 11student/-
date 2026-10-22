@@ -1,17 +1,14 @@
 (() => {
   'use strict';
 
-  const pages = {
-    admin: { name: '管理员工作台', description: '在这里查看当前账号与授权菜单。组织、课程和教学授权页面将随业务开发开放。' },
-    teacher: { name: '教师工作台', description: '在这里查看当前账号与授权菜单。课程建设、备课和课堂教学页面将随业务开发开放。' },
-    student: { name: '学生工作台', description: '在这里查看当前账号与授权菜单。课程学习、课堂活动和作业页面将随业务开发开放。' }
-  };
   const tokenKey = 'zhijiao.login.token';
   const roleKey = 'zhijiao.login.role';
   const pageRole = document.body.dataset.role;
-  const loading = document.getElementById('loading');
-  const app = document.getElementById('roleApp');
-  const retryButton = document.getElementById('retryBtn');
+  const knownRoles = ['admin', 'teacher', 'student'];
+  const status = document.getElementById('authStatus');
+  const message = document.getElementById('authMessage');
+  const retryButton = document.getElementById('authRetry');
+  const logoutButton = document.getElementById('logoutBtn');
 
   function clearSession() {
     sessionStorage.removeItem(tokenKey);
@@ -20,6 +17,13 @@
 
   function goToLogin(reason = '') {
     window.location.replace(`/login.html${reason ? `?logout=${reason}` : ''}`);
+  }
+
+  function showStatus(text, canRetry = false) {
+    document.body.classList.add('auth-pending');
+    status.hidden = false;
+    message.textContent = text;
+    retryButton.hidden = !canRetry;
   }
 
   async function api(path, options = {}) {
@@ -38,47 +42,10 @@
     return result;
   }
 
-  function showLoading(message, retry = false) {
-    app.hidden = true;
-    loading.hidden = false;
-    loading.querySelector('span').textContent = message;
-    retryButton.hidden = !retry;
-  }
-
-  function render(info, routes) {
-    const page = pages[pageRole];
-    const user = info.user || {};
-    const menus = Array.isArray(routes.data) ? routes.data : [];
-    document.getElementById('roleTag').textContent = page.name;
-    document.getElementById('sidebarRole').textContent = page.name;
-    document.getElementById('roleName').textContent = page.name;
-    document.getElementById('greeting').textContent = `欢迎，${user.nickName || user.userName || '已登录用户'}`;
-    document.getElementById('roleDescription').textContent = page.description;
-    document.getElementById('accountValue').textContent = user.userName || '—';
-    document.getElementById('rolesValue').textContent = info.roles.join('、');
-    document.getElementById('menuCount').textContent = `${menus.length} 个一级入口`;
-    const list = document.getElementById('menuList');
-    list.replaceChildren();
-    if (menus.length === 0) {
-      const item = document.createElement('li');
-      item.className = 'empty';
-      item.textContent = '当前账号暂无已开放菜单。';
-      list.appendChild(item);
-    } else {
-      menus.forEach(menu => {
-        const item = document.createElement('li');
-        item.textContent = menu.meta?.title || menu.name || menu.path || '未命名菜单';
-        list.appendChild(item);
-      });
-    }
-    loading.hidden = true;
-    app.hidden = false;
-  }
-
   async function initialize() {
-    showLoading('正在核验登录信息…');
+    showStatus('正在核验登录信息…');
     const token = sessionStorage.getItem(tokenKey);
-    if (!token || !pages[pageRole]) {
+    if (!token || !knownRoles.includes(pageRole)) {
       clearSession();
       goToLogin();
       return;
@@ -88,8 +55,8 @@
       const info = await api('/getInfo', { headers });
       const roles = Array.isArray(info.roles) ? info.roles : [];
       if (!roles.includes(pageRole)) {
-        const allowedRole = [sessionStorage.getItem(roleKey), 'admin', 'teacher', 'student']
-          .find(role => pages[role] && roles.includes(role));
+        const allowedRole = [sessionStorage.getItem(roleKey), ...knownRoles]
+          .find(role => knownRoles.includes(role) && roles.includes(role));
         if (allowedRole) {
           sessionStorage.setItem(roleKey, allowedRole);
           window.location.replace(`/${allowedRole}.html`);
@@ -99,23 +66,26 @@
         }
         return;
       }
-      const routes = await api('/getRouters', { headers });
+      await api('/getRouters', { headers });
       sessionStorage.setItem(roleKey, pageRole);
-      render(info, routes);
+      const user = info.user || {};
+      document.querySelector('.avatar').title = `${user.nickName || user.userName || '已登录用户'} (${user.userName || '账号未知'})`;
+      status.hidden = true;
+      document.body.classList.remove('auth-pending');
     } catch (error) {
       if (error.unauthorized) {
         clearSession();
         goToLogin();
       } else {
-        showLoading(`无法加载工作台：${error.message}`, true);
+        showStatus(`无法加载页面：${error.message}`, true);
       }
     }
   }
 
   retryButton.addEventListener('click', initialize);
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
-    const button = document.getElementById('logoutBtn');
-    button.disabled = true;
+  logoutButton.addEventListener('click', async () => {
+    logoutButton.disabled = true;
+    showStatus('正在退出登录…');
     let reason = 'ok';
     try {
       await api('/logout', {
@@ -128,7 +98,7 @@
     clearSession();
     goToLogin(reason);
   });
-  window.addEventListener('pagehide', () => { app.hidden = true; });
+  window.addEventListener('pagehide', () => document.body.classList.add('auth-pending'));
   window.addEventListener('pageshow', event => { if (event.persisted) initialize(); });
   initialize();
 })();

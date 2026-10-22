@@ -1,6 +1,6 @@
 # 后端工程与本地运行
 
-后端统一位于本目录。已接入 RuoYi-Vue `springboot3` 分支的若依 3.9.2（Spring Boot 3.5.16、Java 17 编译目标），包含六个基础模块。登录页及三端身份入口页由 `ruoyi-admin` 同源提供；教学业务模块仍未实现。下表中“规划职责”描述后续教学业务的分工。
+后端统一位于本目录。已接入 RuoYi-Vue `springboot3` 分支的若依 3.9.2（Spring Boot 3.5.16、Java 17 编译目标），包含六个基础模块。登录页及三端原型导航运行页由 `ruoyi-admin` 同源提供；教学业务模块仍未实现。下表中“规划职责”描述后续教学业务的分工。
 
 ## 在 D 盘运行登录页
 
@@ -14,7 +14,7 @@ mvn -B -pl ruoyi-admin -am package
 .\run-local.ps1
 ```
 
-打开 <http://127.0.0.1:8080/login.html>。页面调用若依真实的 `GET /captchaImage`、`POST /login`、`GET /getInfo`、`GET /getRouters`、`POST /logout`；登录后按服务端角色进入 `/admin.html`、`/teacher.html` 或 `/student.html`。入口页每次加载都重新验证令牌和角色，只展示真实授权菜单名称；业务页面仍待开发。本机已验证管理员账号的完整调用链。上游初始化脚本只创建 `admin` 和 `common` 角色；教师、学生账号和菜单仍需按项目身份方案建立，选择这两种入口不会自动生成角色权限。测试库中的上游演示账号仅供本地联调，部署前必须更换凭据。
+打开 <http://127.0.0.1:8080/login.html>。页面调用若依真实的 `GET /captchaImage`、`POST /login`、`GET /getInfo`、`GET /getRouters`、`POST /logout`；登录后按服务端角色进入 `/admin.html`、`/teacher.html` 或 `/student.html`。这三个运行页面沿用 [`console-navigation-v1`](../prototypes/console-navigation-v1/) 的三端原型布局和导航，每次加载会重新验证令牌和角色。当前菜单仍是原型中的静态导航，尚未绑定若依授权路由；内容区及教学业务接口仍待开发。本机已验证管理员账号的完整调用链。上游初始化脚本只创建 `admin` 和 `common` 角色；教师、学生账号和菜单仍需按项目身份方案建立，选择这两种入口不会自动生成角色权限。测试库中的上游演示账号仅供本地联调，部署前必须更换凭据。
 
 ## 基础模块与依赖
 
