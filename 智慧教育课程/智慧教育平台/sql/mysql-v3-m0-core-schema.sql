@@ -1,7 +1,6 @@
--- MySQL core schema DRAFT for review; no database has been created or migrated.
+-- V3.0 M0 education baseline, part 1 of 2. Run in an empty selected database.
 -- Minimum syntax target: MySQL 8.0.16, InnoDB, utf8mb4.
--- Review the exact server/RuoYi versions, UTC connection time zone, identity mapping,
--- permissions, retention and migration/rollback plan before any execution.
+-- Requires an existing database and a verified RuoYi identity/organization mapping.
 -- Intentionally omits CREATE DATABASE, USE, system tables, seed data and DROP statements.
 
 CREATE TABLE edu_term (
@@ -36,18 +35,22 @@ CREATE TABLE edu_official_course (
 
 CREATE TABLE edu_course_space (
     id BIGINT NOT NULL AUTO_INCREMENT,
+    organization_id BIGINT NOT NULL,
     official_course_id BIGINT NULL,
     owner_user_id BIGINT NOT NULL,
     title VARCHAR(160) NOT NULL,
     summary TEXT NULL,
+    learning_objectives TEXT NULL,
+    cover_storage_key VARCHAR(512) NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_course_space_id_org (id, organization_id),
     KEY idx_edu_course_space_owner_status (owner_user_id, status),
-    KEY idx_edu_course_space_official (official_course_id),
-    CONSTRAINT fk_edu_course_space_official FOREIGN KEY (official_course_id)
-        REFERENCES edu_official_course (id),
+    KEY idx_edu_course_space_official_org (official_course_id, organization_id),
+    CONSTRAINT fk_edu_course_space_official_org FOREIGN KEY (official_course_id, organization_id)
+        REFERENCES edu_official_course (id, organization_id),
     CONSTRAINT chk_edu_course_space_status CHECK (status IN ('DRAFT', 'ACTIVE', 'ARCHIVED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -81,6 +84,7 @@ CREATE TABLE edu_knowledge_point (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_knowledge_point_id_space (id, course_space_id),
     UNIQUE KEY uq_edu_knowledge_point_space_code (course_space_id, code),
     KEY idx_edu_knowledge_point_unit_space (unit_id, course_space_id),
     CONSTRAINT fk_edu_knowledge_point_space FOREIGN KEY (course_space_id)
@@ -101,6 +105,7 @@ CREATE TABLE edu_teaching_class (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_teaching_class_id_org (id, organization_id),
     UNIQUE KEY uq_edu_teaching_class_org_term_code (organization_id, term_id, code),
     KEY idx_edu_teaching_class_term_org (term_id, organization_id),
     KEY idx_edu_teaching_class_official_org (official_course_id, organization_id),
@@ -152,6 +157,7 @@ CREATE TABLE edu_class_student (
     leave_reason VARCHAR(500) NULL,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_class_student_id_class_user (id, teaching_class_id, user_id),
     UNIQUE KEY uq_edu_class_student_active (teaching_class_id, active_user_id),
     KEY idx_edu_class_student_user_dates (user_id, joined_at, left_at),
     CONSTRAINT fk_edu_class_student_class FOREIGN KEY (teaching_class_id)
@@ -161,6 +167,7 @@ CREATE TABLE edu_class_student (
 
 CREATE TABLE edu_course_class_binding (
     id BIGINT NOT NULL AUTO_INCREMENT,
+    organization_id BIGINT NOT NULL,
     teaching_class_id BIGINT NOT NULL,
     course_space_id BIGINT NOT NULL,
     bound_by_user_id BIGINT NOT NULL,
@@ -172,13 +179,16 @@ CREATE TABLE edu_course_class_binding (
         (CASE WHEN ended_at IS NULL THEN course_space_id ELSE NULL END) STORED,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_binding_id_class (id, teaching_class_id),
     UNIQUE KEY uq_edu_binding_id_space (id, course_space_id),
     UNIQUE KEY uq_edu_binding_active_pair (teaching_class_id, active_space_id),
+    KEY idx_edu_binding_class_org (teaching_class_id, organization_id),
+    KEY idx_edu_binding_space_org (course_space_id, organization_id),
     KEY idx_edu_binding_space_dates (course_space_id, published_at, ended_at),
-    CONSTRAINT fk_edu_binding_class FOREIGN KEY (teaching_class_id)
-        REFERENCES edu_teaching_class (id),
-    CONSTRAINT fk_edu_binding_space FOREIGN KEY (course_space_id)
-        REFERENCES edu_course_space (id),
+    CONSTRAINT fk_edu_binding_class_org FOREIGN KEY (teaching_class_id, organization_id)
+        REFERENCES edu_teaching_class (id, organization_id),
+    CONSTRAINT fk_edu_binding_space_org FOREIGN KEY (course_space_id, organization_id)
+        REFERENCES edu_course_space (id, organization_id),
     CONSTRAINT chk_edu_binding_dates CHECK (ended_at IS NULL OR ended_at > published_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -193,6 +203,7 @@ CREATE TABLE edu_resource (
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
     UNIQUE KEY uq_edu_resource_id_space (id, course_space_id),
+    UNIQUE KEY uq_edu_resource_id_kind (id, resource_kind),
     KEY idx_edu_resource_space_status (course_space_id, status, id),
     CONSTRAINT fk_edu_resource_space FOREIGN KEY (course_space_id)
         REFERENCES edu_course_space (id),
@@ -203,6 +214,7 @@ CREATE TABLE edu_resource (
 CREATE TABLE edu_resource_version (
     id BIGINT NOT NULL AUTO_INCREMENT,
     resource_id BIGINT NOT NULL,
+    resource_kind VARCHAR(16) NOT NULL,
     version_no INT UNSIGNED NOT NULL,
     storage_key VARCHAR(512) NULL,
     external_uri VARCHAR(1024) NULL,
@@ -214,13 +226,17 @@ CREATE TABLE edu_resource_version (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
     UNIQUE KEY uq_edu_resource_version_id_resource (id, resource_id),
+    UNIQUE KEY uq_edu_resource_version_id_kind (id, resource_kind),
     UNIQUE KEY uq_edu_resource_version_no (resource_id, version_no),
-    CONSTRAINT fk_edu_resource_version_resource FOREIGN KEY (resource_id)
-        REFERENCES edu_resource (id),
+    KEY idx_edu_resource_version_resource_kind (resource_id, resource_kind),
+    CONSTRAINT fk_edu_resource_version_resource_kind FOREIGN KEY (resource_id, resource_kind)
+        REFERENCES edu_resource (id, resource_kind),
     CONSTRAINT chk_edu_resource_version_no CHECK (version_no > 0),
     CONSTRAINT chk_edu_resource_version_source CHECK
-        ((storage_key IS NOT NULL AND external_uri IS NULL) OR
-         (storage_key IS NULL AND external_uri IS NOT NULL)),
+        ((resource_kind = 'FILE' AND storage_key IS NOT NULL
+          AND CHAR_LENGTH(TRIM(storage_key)) > 0 AND external_uri IS NULL) OR
+         (resource_kind = 'LINK' AND storage_key IS NULL
+          AND external_uri IS NOT NULL AND CHAR_LENGTH(TRIM(external_uri)) > 0)),
     CONSTRAINT chk_edu_resource_version_status CHECK
         (processing_status IN ('PENDING', 'READY', 'FAILED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -235,13 +251,16 @@ CREATE TABLE edu_resource_class_release (
     released_at DATETIME(3) NOT NULL,
     opens_at DATETIME(3) NOT NULL,
     closes_at DATETIME(3) NULL,
-    revoked_at DATETIME(3) NULL,
-    revoked_by_user_id BIGINT NULL,
-    revoke_reason VARCHAR(500) NULL,
+    ended_at DATETIME(3) NULL,
+    end_kind VARCHAR(16) NULL,
+    ended_by_user_id BIGINT NULL,
+    end_reason VARCHAR(500) NULL,
     active_resource_id BIGINT GENERATED ALWAYS AS
-        (CASE WHEN revoked_at IS NULL THEN resource_id ELSE NULL END) STORED,
+        (CASE WHEN ended_at IS NULL THEN resource_id ELSE NULL END) STORED,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
+    UNIQUE KEY uq_edu_release_id_binding (id, binding_id),
+    UNIQUE KEY uq_edu_release_id_version (id, resource_version_id),
     UNIQUE KEY uq_edu_release_active_resource (binding_id, active_resource_id),
     KEY idx_edu_release_binding_space (binding_id, course_space_id),
     KEY idx_edu_release_resource_space (resource_id, course_space_id),
@@ -254,5 +273,10 @@ CREATE TABLE edu_resource_class_release (
     CONSTRAINT fk_edu_release_version_resource FOREIGN KEY (resource_version_id, resource_id)
         REFERENCES edu_resource_version (id, resource_id),
     CONSTRAINT chk_edu_release_window CHECK (closes_at IS NULL OR closes_at > opens_at),
-    CONSTRAINT chk_edu_release_revoke CHECK (revoked_at IS NULL OR revoked_at >= released_at)
+    CONSTRAINT chk_edu_release_end CHECK
+        ((ended_at IS NULL AND end_kind IS NULL AND ended_by_user_id IS NULL AND end_reason IS NULL) OR
+         (ended_at IS NOT NULL AND ended_at >= released_at
+          AND end_kind IS NOT NULL AND end_kind IN ('EXPIRED', 'REPLACED', 'REVOKED'))),
+    CONSTRAINT chk_edu_release_expiry CHECK
+        (end_kind <> 'EXPIRED' OR (closes_at IS NOT NULL AND ended_at >= closes_at))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
