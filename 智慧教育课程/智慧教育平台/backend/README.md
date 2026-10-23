@@ -9,7 +9,7 @@
 在 PowerShell 中执行：
 
 ```powershell
-cd 'D:\智慧教育课程-GitHub\智慧教育课程\智慧教育平台\backend'
+cd 'c:\Users\15241\Desktop\智慧教育课程\智慧教育平台\backend'
 mvn -B -pl ruoyi-admin -am package
 .\run-local.ps1
 ```
