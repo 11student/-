@@ -23,9 +23,28 @@ public final class AnnouncementStatePolicy
         return isActiveClassTeacher(authority) && authority.canPublish();
     }
 
+    /**
+     * 仅适用于已知调用者具有 canPublish 的场景。
+     * 需要“创建者可编辑自己草稿”的完整规则时使用四参数重载。
+     */
     public static boolean canEditDraft(TeacherAnnouncementAuthority authority, AnnouncementStatus status)
     {
         return canCreateDraft(authority) && status == AnnouncementStatus.DRAFT;
+    }
+
+    /**
+     * 编辑草稿的完整规则：具有 canPublish 的教师可编辑本班草稿，
+     * 创建者即使没有 canPublish 也可编辑自己的草稿。
+     */
+    public static boolean canEditDraft(TeacherAnnouncementAuthority authority, AnnouncementStatus status,
+            Long createdByUserId, Long currentUserId)
+    {
+        if (!isActiveClassTeacher(authority) || status != AnnouncementStatus.DRAFT)
+        {
+            return false;
+        }
+        return authority.canPublish()
+                || (currentUserId != null && currentUserId.equals(createdByUserId));
     }
 
     public static boolean canPublish(TeacherAnnouncementAuthority authority, AnnouncementStatus status)

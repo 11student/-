@@ -10,4 +10,9 @@ public class AnnouncementPersistenceException extends AnnouncementException
     {
         super(message, HttpStatus.ERROR);
     }
+
+    public AnnouncementPersistenceException(String message, Throwable cause)
+    {
+        super(message, HttpStatus.ERROR, cause);
+    }
 }

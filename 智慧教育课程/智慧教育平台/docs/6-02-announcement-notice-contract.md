@@ -206,7 +206,7 @@ OR
 1. 教师只有 `can_publish = 0` 时，草稿权限按严格规则执行：创建者可读取和编辑自己的 `DRAFT`；具有本班公告管理权限（本批以 `canPublish` 为管理权限）的教师可读取和编辑；其他教师不可读取或编辑。已发布/已归档公告可由当前任课教师读取。
 2. 教学班 `ARCHIVED` 或绑定 `ended_at` 非空时，教师是否还能读取历史公告？本文建议业务接口拒绝，历史由审计/管理侧保留。
 3. 学期已结束但教学班仍为 `ACTIVE` 时，公告是否还可见？本文暂不单独校验 `edu_term` 日期，以第 2 组返回的教学班/绑定有效性为准。
-4. 公告正文长度上限。数据库 `TEXT` 可存较大内容，API 需要限制；建议 20,000 字符，待产品确认。
+4. 公告正文长度上限。已确定为非空，最多 20,000 个 Unicode 码点，且 UTF-8 编码后不超过 65,535 字节；两个上限必须同时满足。部分四字节字符可能先触及 65,535 字节上限。
 5. “全部标记已读”已确定纳入 M0，与单条标记已读同时支持；接口范围和并发语义见 3.6.1、6.13.1。后端代码尚未实现。
 6. 通知列表按 `binding_id` 过滤已支持；不传时返回本人所有当前可见通知。
 
@@ -610,7 +610,7 @@ POST /education/teacher/announcements
 | --- | --- | --- | --- | --- |
 | `bindingId` | string | 是 | 否 | 课程—教学班绑定 ID |
 | `title` | string | 是 | 否 | 1–200 字符 |
-| `body` | string | 是 | 否 | 非空；建议上限 20,000 字符，待确认 |
+| `body` | string | 是 | 否 | 非空；最多 20,000 个 Unicode 码点，且 UTF-8 编码后不超过 65,535 字节；两个上限同时满足 |
 | `opensAt` | string/null | 否 | 是 | 为空表示发布时取服务端当前时间 |
 | `closesAt` | string/null | 否 | 是 | 为空表示不关闭；非空必须晚于 `opensAt` |
 
@@ -1396,13 +1396,13 @@ UNIQUE KEY uq_edu_notice_recipient_source
 9. **文档**：更新 `docs/api-contracts.md`、`docs/architecture.md`，把本文从“草案”改为“已评审/已实现”时必须附验证证据。
 10. **验收**：按 G0～G3 关口留接口契约、演示账号、正常/空/无权限/失败用例、构建与联调记录、负责人和审核人。
 
-### 10.3 预计涉及文件（未来实现，不在本轮创建）
+### 10.3 预计涉及文件（模块接入与教师公告基础已完成；Controller/DTO/通知仍为未来实现）
 
-| 文件/目录 | 用途 |
+| 文件/目录 | 用途与当前状态 |
 | --- | --- |
-| `backend/pom.xml` | 注册 `ruoyi-education` 模块、依赖管理 |
-| `backend/ruoyi-education/pom.xml` | 新增教育业务模块构建描述 |
-| `backend/ruoyi-admin/pom.xml` | 增加对 `ruoyi-education` 的依赖 |
+| `backend/pom.xml` | 已修改：注册 `ruoyi-education` 模块、依赖管理 |
+| `backend/ruoyi-education/pom.xml` | 已创建：教育业务模块构建描述 |
+| `backend/ruoyi-admin/pom.xml` | 已修改：增加对 `ruoyi-education` 的依赖 |
 | `backend/ruoyi-education/src/main/java/com/ruoyi/education/course/communication/controller/TeacherAnnouncementController.java` | 教师公告接口 |
 | `.../controller/StudentAnnouncementController.java` | 学生公告接口 |
 | `.../controller/StudentNoticeController.java` | 学生通知接口 |

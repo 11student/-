@@ -34,6 +34,31 @@ class AnnouncementStatePolicyTest
     }
 
     @Test
+    void readOnlyTeacherCanEditOwnDraftInCreatorAwarePolicy()
+    {
+        assertTrue(AnnouncementStatePolicy.canEditDraft(
+                READ_ONLY, AnnouncementStatus.DRAFT, 1L, 1L));
+        assertFalse(AnnouncementStatePolicy.canEditDraft(
+                READ_ONLY, AnnouncementStatus.DRAFT, 2L, 1L));
+    }
+
+    @Test
+    void managerCanEditAnotherTeachersDraftInCreatorAwarePolicy()
+    {
+        assertTrue(AnnouncementStatePolicy.canEditDraft(
+                AUTHORIZED, AnnouncementStatus.DRAFT, 2L, 1L));
+    }
+
+    @Test
+    void creatorAwarePolicyRejectsMissingUserIdentity()
+    {
+        assertFalse(AnnouncementStatePolicy.canEditDraft(
+                READ_ONLY, AnnouncementStatus.DRAFT, 1L, null));
+        assertFalse(AnnouncementStatePolicy.canEditDraft(
+                READ_ONLY, AnnouncementStatus.DRAFT, null, 1L));
+    }
+
+    @Test
     void authorizedTeacherCanPublishDraft()
     {
         assertTrue(AnnouncementStatePolicy.canPublish(AUTHORIZED, AnnouncementStatus.DRAFT));

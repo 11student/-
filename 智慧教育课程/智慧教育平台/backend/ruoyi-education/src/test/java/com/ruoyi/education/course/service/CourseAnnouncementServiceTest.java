@@ -3,6 +3,7 @@ package com.ruoyi.education.course.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.sql.Timestamp;
@@ -28,6 +29,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -47,6 +50,7 @@ import com.ruoyi.education.course.exception.AnnouncementAccessDeniedException;
 import com.ruoyi.education.course.exception.AnnouncementAuthorizationUnavailableException;
 import com.ruoyi.education.course.exception.AnnouncementConcurrentUpdateException;
 import com.ruoyi.education.course.exception.AnnouncementNotFoundException;
+import com.ruoyi.education.course.exception.AnnouncementPersistenceException;
 import com.ruoyi.education.course.exception.AnnouncementStateConflictException;
 import com.ruoyi.education.course.exception.AnnouncementValidationException;
 import com.ruoyi.education.course.mapper.CourseAnnouncementMapper;
@@ -84,7 +88,7 @@ class CourseAnnouncementServiceTest
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     binding_id BIGINT NOT NULL,
                     title VARCHAR(200) NOT NULL,
-                    body VARCHAR(4000) NOT NULL,
+                    body TEXT NOT NULL,
                     status VARCHAR(16) NOT NULL,
                     opens_at TIMESTAMP(3),
                     closes_at TIMESTAMP(3),
@@ -119,6 +123,75 @@ class CourseAnnouncementServiceTest
         assertNull(created.getPublishedByUserId());
         assertEquals(AnnouncementStatus.DRAFT, statusOf(created.getId()));
         assertEquals(1, countRows());
+    }
+
+    @Test
+    void createDraftAllowsCloseTimeWithoutOpenTime()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        LocalDateTime closesAt = NOW.plusHours(1);
+
+        CourseAnnouncement created = service.createDraft(BINDING_ID, "title", "body", null, closesAt);
+
+        assertNull(created.getOpensAt());
+        assertEquals(closesAt, created.getClosesAt());
+        assertEquals(AnnouncementStatus.DRAFT, statusOf(created.getId()));
+    }
+
+    @Test
+    void createDraftRejectsBodyOverCharacterLimit()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "a".repeat(20_001);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.createDraft(BINDING_ID, "title", body, null, null));
+        assertEquals(0, countRows());
+    }
+
+    @Test
+    void createDraftRejectsBodyOverUtf8ByteLimit()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "😀".repeat(16_384);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.createDraft(BINDING_ID, "title", body, null, null));
+        assertEquals(0, countRows());
+    }
+
+    @Test
+    void createDraftAcceptsBodyAtCharacterLimit()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "a".repeat(20_000);
+
+        CourseAnnouncement created = service.createDraft(BINDING_ID, "title", body, null, null);
+
+        assertEquals(20_000, created.getBody().length());
+    }
+
+    @Test
+    void createDraftAcceptsBodyAtUtf8ByteLimit()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "😀".repeat(16_383);
+
+        CourseAnnouncement created = service.createDraft(BINDING_ID, "title", body, null, null);
+
+        assertEquals(16_383, created.getBody().codePointCount(0, created.getBody().length()));
+    }
+
+    @Test
+    void createDraftRejectsWindowThatCollapsesAtDatabasePrecision()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        LocalDateTime opensAt = NOW.plusNanos(600_000);
+        LocalDateTime closesAt = NOW.plusNanos(1_400_000);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.createDraft(BINDING_ID, "title", "body", opensAt, closesAt));
+        assertEquals(0, countRows());
     }
 
     @Test
@@ -188,6 +261,68 @@ class CourseAnnouncementServiceTest
     }
 
     @Test
+    void unchangedDraftUpdateReturnsCurrentWithoutConcurrentConflict()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.zeroRowMode = ZeroRowMode.NO_CHANGE;
+
+        CourseAnnouncement result = service.updateDraft(BINDING_ID, id, "draft", "body", null, null);
+
+        assertEquals(id, result.getId());
+        assertEquals("draft", result.getTitle());
+        assertEquals(AnnouncementStatus.DRAFT, statusOf(id));
+    }
+
+    @Test
+    void updateDraftRejectsBodyOverCharacterLimit()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "a".repeat(20_001);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.updateDraft(BINDING_ID, id, "draft", body, null, null));
+        assertEquals("draft", titleOf(id));
+    }
+
+    @Test
+    void updateDraftRejectsBodyOverUtf8ByteLimit()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "😀".repeat(16_384);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.updateDraft(BINDING_ID, id, "draft", body, null, null));
+        assertEquals("draft", titleOf(id));
+    }
+
+    @Test
+    void updateDraftAcceptsBodyAtCharacterLimit()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "a".repeat(20_000);
+
+        CourseAnnouncement updated = service.updateDraft(BINDING_ID, id, "draft", body, null, null);
+
+        assertEquals(20_000, updated.getBody().length());
+    }
+
+    @Test
+    void updateDraftAcceptsBodyAtUtf8ByteLimit()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        String body = "😀".repeat(16_383);
+
+        CourseAnnouncement updated = service.updateDraft(BINDING_ID, id, "draft", body, null, null);
+
+        assertEquals(16_383, updated.getBody().codePointCount(0, updated.getBody().length()));
+    }
+
+    @Test
     void publishDraftSetsPublishedFields()
     {
         long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
@@ -244,6 +379,46 @@ class CourseAnnouncementServiceTest
         authorizationPort.allow(BINDING_ID, false);
 
         assertThrows(AnnouncementAccessDeniedException.class, () -> service.publish(BINDING_ID, id));
+        assertEquals(AnnouncementStatus.DRAFT, statusOf(id));
+    }
+
+    @Test
+    void publishRejectsDraftWhoseCloseTimeIsNotAfterPublishTime()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        jdbcTemplate.update("update edu_course_announcement set closes_at = ? where id = ?",
+                Timestamp.valueOf(NOW.minusMinutes(1)), id);
+        authorizationPort.allow(BINDING_ID, true);
+
+        assertThrows(AnnouncementValidationException.class, () -> service.publish(BINDING_ID, id));
+        assertEquals(AnnouncementStatus.DRAFT, statusOf(id));
+    }
+
+    @Test
+    void publishDraftWithFutureCloseTimeUsesServerOpenTime()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        LocalDateTime closesAt = NOW.plusHours(1);
+        jdbcTemplate.update("update edu_course_announcement set closes_at = ? where id = ?",
+                Timestamp.valueOf(closesAt), id);
+        authorizationPort.allow(BINDING_ID, true);
+
+        CourseAnnouncement published = service.publish(BINDING_ID, id);
+
+        assertEquals(AnnouncementStatus.PUBLISHED, published.getStatus());
+        assertEquals(NOW, published.getOpensAt());
+        assertEquals(closesAt, published.getClosesAt());
+    }
+
+    @Test
+    void publishRejectsDraftWhoseCloseTimeIsNotAfterExistingOpenTime()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        jdbcTemplate.update("update edu_course_announcement set opens_at = ?, closes_at = ? where id = ?",
+                Timestamp.valueOf(NOW.minusHours(1)), Timestamp.valueOf(NOW.minusHours(2)), id);
+        authorizationPort.allow(BINDING_ID, true);
+
+        assertThrows(AnnouncementValidationException.class, () -> service.publish(BINDING_ID, id));
         assertEquals(AnnouncementStatus.DRAFT, statusOf(id));
     }
 
@@ -458,13 +633,94 @@ class CourseAnnouncementServiceTest
     }
 
     @Test
-    void draftReadIsRestrictedToCreatorOrManager()
+    void transactionRollsBackWhenDataAccessFailsAfterInsert()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failAfterInsertWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.createDraft(BINDING_ID, "title", "body", null, null));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+        assertEquals(0, countRows());
+    }
+
+    @Test
+    void createDraftWrapsDataAccessException()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failWritesWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.createDraft(BINDING_ID, "title", "body", null, null));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+    }
+
+    @Test
+    void updateDraftWrapsDataAccessException()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failWritesWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.updateDraft(BINDING_ID, id, "changed", "body", null, null));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+    }
+
+    @Test
+    void publishWrapsDataAccessException()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failWritesWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.publish(BINDING_ID, id));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+    }
+
+    @Test
+    void archiveWrapsDataAccessException()
+    {
+        long id = insertRow(BINDING_ID, "published", "PUBLISHED", OTHER_TEACHER_ID, 90001L);
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failWritesWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.archive(BINDING_ID, id));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+    }
+
+    @Test
+    void getTeacherAnnouncementWrapsDataAccessException()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failReadsWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.getTeacherAnnouncement(BINDING_ID, 1L));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+    }
+
+    @Test
+    void listTeacherAnnouncementsWrapsDataAccessException()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+        testMapper.failReadsWithDataAccess();
+
+        AnnouncementPersistenceException error = assertThrows(AnnouncementPersistenceException.class,
+                () -> service.listTeacherAnnouncements(BINDING_ID, null));
+        assertSame(testMapper.dataAccessFailure, error.getCause());
+    }
+
+    @Test
+    void draftReadHidesOtherTeachersDraftAsNotFound()
     {
         long otherDraft = insertRow(BINDING_ID, "other draft", "DRAFT", OTHER_TEACHER_ID, null);
         long ownDraft = insertRow(BINDING_ID, "own draft", "DRAFT", TEACHER_ID, null);
         authorizationPort.allow(BINDING_ID, false);
 
-        assertThrows(AnnouncementAccessDeniedException.class,
+        assertThrows(AnnouncementNotFoundException.class,
                 () -> service.getTeacherAnnouncement(BINDING_ID, otherDraft));
         assertNotNull(service.getTeacherAnnouncement(BINDING_ID, ownDraft));
 
@@ -613,6 +869,12 @@ class CourseAnnouncementServiceTest
 
         private boolean failAfterInsert;
 
+        private boolean failAfterInsertWithDataAccess;
+
+        DataAccessException dataAccessFailure;
+
+        private boolean failReadsWithDataAccess;
+
         ZeroRowMode zeroRowMode = ZeroRowMode.NONE;
 
         TestMapper(CourseAnnouncementMapper delegate, JdbcTemplate jdbcTemplate)
@@ -624,18 +886,46 @@ class CourseAnnouncementServiceTest
         void reset()
         {
             failAfterInsert = false;
+            failAfterInsertWithDataAccess = false;
+            dataAccessFailure = null;
+            failReadsWithDataAccess = false;
             zeroRowMode = ZeroRowMode.NONE;
+        }
+
+        void failWritesWithDataAccess()
+        {
+            dataAccessFailure = new DataIntegrityViolationException("simulated persistence failure");
+        }
+
+        void failReadsWithDataAccess()
+        {
+            failReadsWithDataAccess = true;
+            dataAccessFailure = new DataIntegrityViolationException("simulated read failure");
+        }
+
+        void failAfterInsertWithDataAccess()
+        {
+            failAfterInsertWithDataAccess = true;
+            dataAccessFailure = new DataIntegrityViolationException("simulated failure after insert");
         }
 
         @Override
         public CourseAnnouncement selectById(Long id)
         {
+            if (failReadsWithDataAccess)
+            {
+                throw dataAccessFailure;
+            }
             return delegate.selectById(id);
         }
 
         @Override
         public CourseAnnouncement selectByIdForUpdate(Long id)
         {
+            if (failReadsWithDataAccess)
+            {
+                throw dataAccessFailure;
+            }
             return delegate.selectByIdForUpdate(id);
         }
 
@@ -661,16 +951,28 @@ class CourseAnnouncementServiceTest
         public List<CourseAnnouncement> selectTeacherVisibleByBindingId(Long bindingId,
                 AnnouncementStatus status, Long userId, boolean canReadAllDrafts)
         {
+            if (failReadsWithDataAccess)
+            {
+                throw dataAccessFailure;
+            }
             return delegate.selectTeacherVisibleByBindingId(bindingId, status, userId, canReadAllDrafts);
         }
 
         @Override
         public int insertDraft(CourseAnnouncement announcement)
         {
+            if (dataAccessFailure != null)
+            {
+                throw dataAccessFailure;
+            }
             int rows = delegate.insertDraft(announcement);
             if (failAfterInsert)
             {
                 throw new IllegalStateException("simulated failure after insert");
+            }
+            if (failAfterInsertWithDataAccess)
+            {
+                throw dataAccessFailure;
             }
             return rows;
         }
@@ -678,6 +980,10 @@ class CourseAnnouncementServiceTest
         @Override
         public int updateDraft(CourseAnnouncement announcement)
         {
+            if (dataAccessFailure != null)
+            {
+                throw dataAccessFailure;
+            }
             if (zeroRowMode == ZeroRowMode.NONE)
             {
                 return delegate.updateDraft(announcement);
@@ -697,6 +1003,10 @@ class CourseAnnouncementServiceTest
         @Override
         public int publishDraft(Long id, Long bindingId, Long publishedByUserId, LocalDateTime now)
         {
+            if (dataAccessFailure != null)
+            {
+                throw dataAccessFailure;
+            }
             if (zeroRowMode == ZeroRowMode.NONE)
             {
                 return delegate.publishDraft(id, bindingId, publishedByUserId, now);
@@ -716,6 +1026,10 @@ class CourseAnnouncementServiceTest
         @Override
         public int archivePublished(Long id, Long bindingId)
         {
+            if (dataAccessFailure != null)
+            {
+                throw dataAccessFailure;
+            }
             if (zeroRowMode == ZeroRowMode.NONE)
             {
                 return delegate.archivePublished(id, bindingId);

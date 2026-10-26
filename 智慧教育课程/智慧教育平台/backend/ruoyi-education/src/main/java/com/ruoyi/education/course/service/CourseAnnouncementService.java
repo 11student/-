@@ -1,11 +1,14 @@
 package com.ruoyi.education.course.service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.ruoyi.common.constant.HttpStatus;
@@ -36,6 +39,12 @@ import com.ruoyi.education.course.mapper.CourseAnnouncementMapper;
 @Service
 public class CourseAnnouncementService
 {
+    private static final int MAX_TITLE_CODE_POINTS = 200;
+
+    private static final int MAX_BODY_CODE_POINTS = 20_000;
+
+    private static final int MAX_BODY_UTF8_BYTES = 65_535;
+
     private final CourseAnnouncementMapper announcementMapper;
 
     private final TeachingClassAuthorizationPort authorizationPort;
@@ -62,6 +71,8 @@ public class CourseAnnouncementService
             LocalDateTime opensAt, LocalDateTime closesAt)
     {
         validateBindingId(bindingId);
+        opensAt = toDatabasePrecision(opensAt);
+        closesAt = toDatabasePrecision(closesAt);
         validateDraftFields(title, body, opensAt, closesAt);
 
         Long userId = currentUserId();
@@ -79,13 +90,13 @@ public class CourseAnnouncementService
         announcement.setCreatedByUserId(userId);
         announcement.setCreatedAt(now);
 
-        int rows = announcementMapper.insertDraft(announcement);
+        int rows = insertDraft(announcement);
         if (rows != 1 || announcement.getId() == null)
         {
             throw persistenceFailure("公告草稿创建失败");
         }
 
-        CourseAnnouncement saved = announcementMapper.selectById(announcement.getId());
+        CourseAnnouncement saved = selectById(announcement.getId());
         if (saved == null
                 || !bindingId.equals(saved.getBindingId())
                 || saved.getStatus() != AnnouncementStatus.DRAFT
@@ -107,6 +118,8 @@ public class CourseAnnouncementService
     {
         validateBindingId(bindingId);
         validateAnnouncementId(announcementId);
+        opensAt = toDatabasePrecision(opensAt);
+        closesAt = toDatabasePrecision(closesAt);
         validateDraftFields(title, body, opensAt, closesAt);
 
         Long userId = currentUserId();
@@ -128,13 +141,13 @@ public class CourseAnnouncementService
         announcement.setOpensAt(opensAt);
         announcement.setClosesAt(closesAt);
 
-        int rows = announcementMapper.updateDraft(announcement);
+        int rows = updateDraft(announcement);
         if (rows != 1)
         {
-            return resolveUpdateZeroRows(bindingId, announcementId);
+            return resolveUpdateZeroRows(bindingId, announcementId, title, body, opensAt, closesAt);
         }
 
-        CourseAnnouncement saved = announcementMapper.selectById(announcementId);
+        CourseAnnouncement saved = selectById(announcementId);
         if (saved == null
                 || !bindingId.equals(saved.getBindingId())
                 || saved.getStatus() != AnnouncementStatus.DRAFT)
@@ -174,14 +187,19 @@ public class CourseAnnouncementService
         {
             throw stateConflict("草稿的发布人状态异常");
         }
+        LocalDateTime effectiveOpensAt = announcement.getOpensAt() != null ? announcement.getOpensAt() : now;
+        if (announcement.getClosesAt() != null && !announcement.getClosesAt().isAfter(effectiveOpensAt))
+        {
+            throw new AnnouncementValidationException("关闭时间必须晚于开始时间");
+        }
 
-        int rows = announcementMapper.publishDraft(announcementId, bindingId, userId, now);
+        int rows = publishDraft(announcementId, bindingId, userId, now);
         if (rows != 1)
         {
             return resolvePublishZeroRows(bindingId, announcementId);
         }
 
-        CourseAnnouncement saved = announcementMapper.selectById(announcementId);
+        CourseAnnouncement saved = selectById(announcementId);
         if (saved == null
                 || saved.getStatus() != AnnouncementStatus.PUBLISHED
                 || !userId.equals(saved.getPublishedByUserId())
@@ -220,13 +238,13 @@ public class CourseAnnouncementService
         }
         requirePublishedFields(announcement);
 
-        int rows = announcementMapper.archivePublished(announcementId, bindingId);
+        int rows = archivePublished(announcementId, bindingId);
         if (rows != 1)
         {
             return resolveArchiveZeroRows(bindingId, announcementId);
         }
 
-        CourseAnnouncement saved = announcementMapper.selectById(announcementId);
+        CourseAnnouncement saved = selectById(announcementId);
         if (saved == null || saved.getStatus() != AnnouncementStatus.ARCHIVED)
         {
             throw persistenceFailure("公告归档结果不一致");
@@ -248,7 +266,7 @@ public class CourseAnnouncementService
                 && !access.authority().canPublish()
                 && !userId.equals(announcement.getCreatedByUserId()))
         {
-            throw new AnnouncementAccessDeniedException();
+            throw new AnnouncementNotFoundException();
         }
         return announcement;
     }
@@ -260,7 +278,7 @@ public class CourseAnnouncementService
 
         Long userId = currentUserId();
         TeacherAnnouncementAccess access = requireAccess(bindingId, userId, now());
-        return announcementMapper.selectTeacherVisibleByBindingId(
+        return selectTeacherVisibleByBindingId(
                 bindingId, status, userId, access.authority().canPublish());
     }
 
@@ -312,7 +330,7 @@ public class CourseAnnouncementService
 
     private CourseAnnouncement loadOwned(Long bindingId, Long announcementId)
     {
-        CourseAnnouncement announcement = announcementMapper.selectById(announcementId);
+        CourseAnnouncement announcement = selectById(announcementId);
         if (announcement == null || !bindingId.equals(announcement.getBindingId()))
         {
             // 其他教学班的公告按不存在处理，避免泄露对象存在性。
@@ -321,12 +339,17 @@ public class CourseAnnouncementService
         return announcement;
     }
 
-    private CourseAnnouncement resolveUpdateZeroRows(Long bindingId, Long announcementId)
+    private CourseAnnouncement resolveUpdateZeroRows(Long bindingId, Long announcementId,
+            String title, String body, LocalDateTime opensAt, LocalDateTime closesAt)
     {
         CourseAnnouncement current = reloadOwned(bindingId, announcementId);
         if (current.getStatus() != AnnouncementStatus.DRAFT)
         {
             throw stateConflict("只有草稿可以编辑");
+        }
+        if (sameDraftFields(current, title, body, opensAt, closesAt))
+        {
+            return current;
         }
         throw concurrentUpdate();
     }
@@ -369,7 +392,7 @@ public class CourseAnnouncementService
     private CourseAnnouncement reloadOwned(Long bindingId, Long announcementId)
     {
         // 0 行更新后的分类必须使用当前读，避免 REPEATABLE READ 快照读返回旧状态。
-        CourseAnnouncement current = announcementMapper.selectByIdForUpdate(announcementId);
+        CourseAnnouncement current = selectByIdForUpdate(announcementId);
         if (current == null || !bindingId.equals(current.getBindingId()))
         {
             throw new AnnouncementNotFoundException();
@@ -397,7 +420,7 @@ public class CourseAnnouncementService
 
     private LocalDateTime now()
     {
-        return LocalDateTime.now(clock);
+        return toDatabasePrecision(LocalDateTime.now(clock));
     }
 
     private void validateBindingId(Long bindingId)
@@ -423,7 +446,7 @@ public class CourseAnnouncementService
         {
             throw new AnnouncementValidationException("公告标题不能为空");
         }
-        if (title.codePointCount(0, title.length()) > 200)
+        if (title.codePointCount(0, title.length()) > MAX_TITLE_CODE_POINTS)
         {
             throw new AnnouncementValidationException("公告标题不能超过 200 个字符");
         }
@@ -431,10 +454,36 @@ public class CourseAnnouncementService
         {
             throw new AnnouncementValidationException("公告正文不能为空");
         }
-        if (closesAt != null && (opensAt == null || !closesAt.isAfter(opensAt)))
+        if (body.codePointCount(0, body.length()) > MAX_BODY_CODE_POINTS)
+        {
+            throw new AnnouncementValidationException("公告正文不能超过 20,000 个字符");
+        }
+        if (body.getBytes(StandardCharsets.UTF_8).length > MAX_BODY_UTF8_BYTES)
+        {
+            throw new AnnouncementValidationException("公告正文超过数据库存储上限");
+        }
+        if (closesAt != null && opensAt != null && !closesAt.isAfter(opensAt))
         {
             throw new AnnouncementValidationException("关闭时间必须晚于开始时间");
         }
+    }
+
+    private static LocalDateTime toDatabasePrecision(LocalDateTime value)
+    {
+        if (value == null)
+        {
+            return null;
+        }
+        return value.plusNanos(500_000).truncatedTo(ChronoUnit.MILLIS);
+    }
+
+    private static boolean sameDraftFields(CourseAnnouncement announcement, String title, String body,
+            LocalDateTime opensAt, LocalDateTime closesAt)
+    {
+        return Objects.equals(announcement.getTitle(), title)
+                && Objects.equals(announcement.getBody(), body)
+                && Objects.equals(announcement.getOpensAt(), opensAt)
+                && Objects.equals(announcement.getClosesAt(), closesAt);
     }
 
     private AnnouncementStateConflictException stateConflict(String message)
@@ -447,8 +496,99 @@ public class CourseAnnouncementService
         return new AnnouncementConcurrentUpdateException();
     }
 
+    private CourseAnnouncement selectById(Long announcementId)
+    {
+        try
+        {
+            return announcementMapper.selectById(announcementId);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告读取失败", e);
+        }
+    }
+
+    private CourseAnnouncement selectByIdForUpdate(Long announcementId)
+    {
+        try
+        {
+            return announcementMapper.selectByIdForUpdate(announcementId);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告状态读取失败", e);
+        }
+    }
+
+    private List<CourseAnnouncement> selectTeacherVisibleByBindingId(Long bindingId,
+            AnnouncementStatus status, Long userId, boolean canReadAllDrafts)
+    {
+        try
+        {
+            return announcementMapper.selectTeacherVisibleByBindingId(
+                    bindingId, status, userId, canReadAllDrafts);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告列表读取失败", e);
+        }
+    }
+
+    private int insertDraft(CourseAnnouncement announcement)
+    {
+        try
+        {
+            return announcementMapper.insertDraft(announcement);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告草稿保存失败", e);
+        }
+    }
+
+    private int updateDraft(CourseAnnouncement announcement)
+    {
+        try
+        {
+            return announcementMapper.updateDraft(announcement);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告草稿保存失败", e);
+        }
+    }
+
+    private int publishDraft(Long announcementId, Long bindingId, Long userId, LocalDateTime now)
+    {
+        try
+        {
+            return announcementMapper.publishDraft(announcementId, bindingId, userId, now);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告发布失败", e);
+        }
+    }
+
+    private int archivePublished(Long announcementId, Long bindingId)
+    {
+        try
+        {
+            return announcementMapper.archivePublished(announcementId, bindingId);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告归档失败", e);
+        }
+    }
+
     private AnnouncementPersistenceException persistenceFailure(String message)
     {
         return new AnnouncementPersistenceException(message);
+    }
+
+    private AnnouncementPersistenceException persistenceFailure(String message, Throwable cause)
+    {
+        return new AnnouncementPersistenceException(message, cause);
     }
 }
