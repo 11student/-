@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -114,6 +115,14 @@ class StudentAnnouncementControllerTest
                 .andExpect(jsonPath("$.data.visibilityState").doesNotExist())
                 .andExpect(jsonPath("$.data.createdByUserId").doesNotExist())
                 .andExpect(jsonPath("$.data.publishedByUserId").doesNotExist());
+    }
+
+    @Test
+    void blankBindingIdReturns400WithoutServiceCall() throws Exception
+    {
+        assertBadRequest(get("/education/student/announcements").param("bindingId", ""));
+        assertBadRequest(get("/education/student/announcements").param("bindingId", "   "));
+        verifyNoInteractions(service);
     }
 
     @Test

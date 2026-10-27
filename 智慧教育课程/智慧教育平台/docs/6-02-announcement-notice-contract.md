@@ -1,9 +1,9 @@
 # 6-02 教学班公告与个人通知 M0 后端契约草案
 
-> 版本：0.2 草案｜日期：2026-10-25｜负责人：6A｜状态：教师公告 Service/Mapper 基础实现已落地；Controller、前端 DTO、学生通知和通知 fan-out 未实现
+> 版本：0.2 草案｜日期：2026-10-25｜负责人：6A｜状态：教师公告 Controller/DTO/Service/Mapper 和学生公告只读列表/详情已落地；学生通知、未读数、已读和通知 fan-out 未实现
 >
 > 本文只覆盖 `docs/分工.md` 的 6-02：教学班公告发布/读取、学生本班公告、学生本人任务与成绩通知、列表/详情/未读数/单条标记已读/全部标记已读。
-> 本文中的 URL、字段名、错误码、权限标识仍为**待评审建议**，不是已冻结协议；教师公告 Service 的已实现行为以第 3、4、7 节和实现代码为准。
+> 本文中的 URL、字段名、错误码、权限标识仍为**待评审建议**，不是已冻结协议；公告 Service/Controller 的已实现行为以第 3、4、7 节和实现代码为准。
 
 ## 0. 事实基线
 
@@ -14,13 +14,13 @@
 - 已有统一响应结构 `AjaxResult`、分页结构 `TableDataInfo`、全局异常处理、`@PreAuthorize` 和 `@Log` 审计能力。
 - `sql/mysql-v3-m0-*.sql` 已在隔离 MySQL 8.0.46 测试库验证建表与部分约束。
 - 演示数据中已出现 1 条 `PUBLISHED` 公告和 2 条个人通知（`ANNOUNCEMENT`、`GRADE`）。
-- 教师公告已有 Entity、Mapper 读写、状态规则、Service、授权适配端口和 H2 隔离测试；没有 Controller、前端 DTO、学生通知或通知 fan-out。
+- 教师公告已有 Entity、Mapper 读写、状态规则、Service、授权适配端口、Controller/DTO 和 H2 隔离测试；学生公告已有只读列表/详情 Controller/DTO/Service 和学生授权端口，尚无生产授权适配器；学生通知和通知 fan-out 未实现。
 
 ### 0.2 仅有表设计或尚未接入
 
-- `edu_course_announcement` 已有基础 Entity、Mapper、Service；仍没有 Controller、前端 DTO。
+- `edu_course_announcement` 已有教师公告读写和学生公告只读 Controller/DTO/Service/Mapper；学生通知尚无实现。
 - `edu_user_notice` 只有 DDL，没有 Entity、Mapper、Service 或通知 fan-out。
-- `edu_class_teacher`、`edu_class_student`、`edu_course_class_binding`、`edu_teaching_class` 已有表结构和演示数据，但没有教学业务接口；公告模块通过 `TeachingClassAuthorizationPort` 隔离，当前没有生产适配器。
+- `edu_class_teacher`、`edu_class_student`、`edu_course_class_binding`、`edu_teaching_class` 已有表结构和演示数据，但没有教学业务接口；公告模块通过教师教学班授权端口和学生公告授权端口隔离，当前没有生产适配器。
 - `ruoyi-education` 已接入 Maven 构建；当前没有真实 MySQL、HTTP 或完整 Spring Boot 应用联调结论。
 
 ### 0.3 仍属待评审方案
@@ -54,7 +54,7 @@
 - 不直接读写其他领域的业务表；只通过第 1、2、3、4、5 组提供的服务契约取数。
 - 不新增依赖、表、字段；现有模型不足处只列变更建议。
 - 不把示例路径、字段、错误码描述成已冻结协议。
-- 本阶段不生成 Controller、前端 DTO、学生通知或 SQL 变更；教师公告 Service/Mapper 基础实现已另行落地。
+- 本阶段不生成学生通知或 SQL 变更；教师公告和学生公告只读 Controller/DTO/Service/Mapper 已另行落地。
 
 ### 1.3 公告与通知的职责区别
 
@@ -1396,23 +1396,23 @@ UNIQUE KEY uq_edu_notice_recipient_source
 9. **文档**：更新 `docs/api-contracts.md`、`docs/architecture.md`，把本文从“草案”改为“已评审/已实现”时必须附验证证据。
 10. **验收**：按 G0～G3 关口留接口契约、演示账号、正常/空/无权限/失败用例、构建与联调记录、负责人和审核人。
 
-### 10.3 预计涉及文件（模块接入与教师公告基础已完成；Controller/DTO/通知仍为未来实现）
+### 10.3 预计涉及文件（教师公告与学生公告只读 Controller/DTO 已完成；学生通知等仍为未来实现）
 
 | 文件/目录 | 用途与当前状态 |
 | --- | --- |
 | `backend/pom.xml` | 已修改：注册 `ruoyi-education` 模块、依赖管理 |
 | `backend/ruoyi-education/pom.xml` | 已创建：教育业务模块构建描述 |
 | `backend/ruoyi-admin/pom.xml` | 已修改：增加对 `ruoyi-education` 的依赖 |
-| `backend/ruoyi-education/src/main/java/com/ruoyi/education/course/communication/controller/TeacherAnnouncementController.java` | 教师公告接口 |
-| `.../controller/StudentAnnouncementController.java` | 学生公告接口 |
-| `.../controller/StudentNoticeController.java` | 学生通知接口 |
-| `.../domain/Announcement.java`、`Notice.java` | 表映射对象（或 DTO 分离） |
-| `.../dto/AnnouncementCreateRequest.java`、`AnnouncementUpdateRequest.java`、`AnnouncementView.java`、`NoticeView.java`、`UnreadCountView.java` | 请求/响应 DTO |
-| `.../enums/AnnouncementStatus.java`、`NoticeKind.java` | 枚举 |
-| `.../service/AnnouncementService.java`、`NoticeService.java`、`NoticeEventService.java` | 业务与事件消费 |
-| `.../mapper/AnnouncementMapper.java`、`NoticeMapper.java` | MyBatis Mapper |
-| `backend/ruoyi-education/src/main/resources/mapper/education/AnnouncementMapper.xml`、`NoticeMapper.xml` | SQL 映射 |
-| `backend/ruoyi-education/src/test/java/...` | 单元/集成测试 |
+| `backend/ruoyi-education/src/main/java/com/ruoyi/education/course/communication/controller/TeacherAnnouncementController.java` | 已实现：教师公告接口 |
+| `.../controller/StudentAnnouncementController.java` | 已实现：学生公告只读列表/详情 |
+| `.../controller/StudentNoticeController.java` | 未来实现：学生通知接口 |
+| `.../domain/Announcement.java`、`Notice.java` | 教师公告实体已实现；通知对象未实现 |
+| `.../dto/AnnouncementCreateRequest.java`、`AnnouncementUpdateRequest.java`、`AnnouncementView.java`、`NoticeView.java`、`UnreadCountView.java` | 教师/学生公告 DTO 已实现；通知 DTO 未实现 |
+| `.../enums/AnnouncementStatus.java`、`NoticeKind.java` | `AnnouncementStatus` 已实现；`NoticeKind` 未实现 |
+| `.../service/AnnouncementService.java`、`NoticeService.java`、`NoticeEventService.java` | 公告 Service 已实现；通知 Service 未实现 |
+| `.../mapper/AnnouncementMapper.java`、`NoticeMapper.java` | 公告 Mapper 已实现；通知 Mapper 未实现 |
+| `backend/ruoyi-education/src/main/resources/mapper/education/AnnouncementMapper.xml`、`NoticeMapper.xml` | 公告 Mapper XML 已实现；通知 Mapper XML 未实现 |
+| `backend/ruoyi-education/src/test/java/...` | 公告测试已落地；通知测试未实现 |
 | `sql/` | 权限菜单种子（若第 1 组要求）；不新增业务表 |
 | `docs/api-contracts.md` | 评审后补契约摘要 |
 | `docs/architecture.md` | 补充公告/通知归属和事件边界 |
@@ -1421,13 +1421,13 @@ UNIQUE KEY uq_edu_notice_recipient_source
 
 ### 10.4 不在本轮交付
 
-- Controller、前端请求/响应 DTO、Vue 页面；
-- 学生公告/通知接口、未读数、单条标记已读、全部标记已读（契约已确认，后端代码未实现）；
+- Vue 页面；
+- 学生通知接口、未读数、单条标记已读、全部标记已读（契约已确认，后端代码未实现）；
 - 公告通知 fan-out、上游任务/活动/成绩通知；
 - 任何 SQL/数据库变更或测试库写入；
 - 任何菜单/角色/权限数据变更；
 - 管理员公告治理、校园资讯、留言、系统通知模板、AI 功能。
-- 真实 MySQL、完整 Spring Boot 应用、HTTP 和真实教学班授权联调；当前教师公告 Service/Mapper/H2 测试已落地，但不等于真实联调完成。
+- 真实 MySQL、完整 Spring Boot 应用、HTTP 和真实教学班授权联调；当前教师公告和学生公告只读 Controller/DTO/Service/Mapper 及 H2 测试已落地，但不等于真实联调完成。
 
 ---
 

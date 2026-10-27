@@ -36,7 +36,7 @@ public class StudentAnnouncementController extends BaseController
             @RequestParam(required = false) String pageNum,
             @RequestParam(required = false) String pageSize)
     {
-        Long parsedBindingId = bindingId == null || bindingId.isBlank()
+        Long parsedBindingId = bindingId == null
                 ? null : TeacherAnnouncementRequestParser.requiredId(bindingId, "bindingId");
         int parsedPageNum = TeacherAnnouncementRequestParser.pageNumber(
                 pageNum, "pageNum", 1, 1, Integer.MAX_VALUE);
