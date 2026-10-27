@@ -64,8 +64,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and (closes_at is null or closes_at &gt; #{now})
     </select>
 
-    <select id="selectTeacherVisibleByBindingId" resultMap="CourseAnnouncementResult">
-        <include refid="selectAnnouncementVo"/>
+    <sql id="teacherVisibleCondition">
         <where>
             binding_id = #{bindingId}
             <if test="status != null">
@@ -75,7 +74,25 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                 and (status &lt;&gt; 'DRAFT' or created_by_user_id = #{userId})
             </if>
         </where>
+    </sql>
+
+    <select id="selectTeacherVisibleByBindingId" resultMap="CourseAnnouncementResult">
+        <include refid="selectAnnouncementVo"/>
+        <include refid="teacherVisibleCondition"/>
         order by created_at desc, id desc
+    </select>
+
+    <select id="countTeacherVisibleByBindingId" resultType="long">
+        select count(*)
+        from edu_course_announcement
+        <include refid="teacherVisibleCondition"/>
+    </select>
+
+    <select id="selectTeacherVisibleByBindingIdPage" resultMap="CourseAnnouncementResult">
+        <include refid="selectAnnouncementVo"/>
+        <include refid="teacherVisibleCondition"/>
+        order by created_at desc, id desc
+        limit #{limit} offset #{offset}
     </select>
 
     <insert id="insertDraft" parameterType="com.ruoyi.education.course.domain.CourseAnnouncement"

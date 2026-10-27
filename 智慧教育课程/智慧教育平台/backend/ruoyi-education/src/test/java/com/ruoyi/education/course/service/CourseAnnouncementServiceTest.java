@@ -54,6 +54,7 @@ import com.ruoyi.education.course.exception.AnnouncementPersistenceException;
 import com.ruoyi.education.course.exception.AnnouncementStateConflictException;
 import com.ruoyi.education.course.exception.AnnouncementValidationException;
 import com.ruoyi.education.course.mapper.CourseAnnouncementMapper;
+import com.ruoyi.education.course.service.CourseAnnouncementPage;
 
 @SpringJUnitConfig(CourseAnnouncementServiceTest.TestConfig.class)
 class CourseAnnouncementServiceTest
@@ -729,6 +730,73 @@ class CourseAnnouncementServiceTest
     }
 
     @Test
+    void teacherAnnouncementCanBeReadByAnnouncementId()
+    {
+        long id = insertRow(BINDING_ID, "read by id", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, false);
+
+        CourseAnnouncement announcement = service.getTeacherAnnouncement(id);
+
+        assertEquals(id, announcement.getId());
+        assertEquals("read by id", announcement.getTitle());
+    }
+
+    @Test
+    void missingAnnouncementByIdIsNotFound()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+
+        assertThrows(AnnouncementNotFoundException.class,
+                () -> service.getTeacherAnnouncement(9999L));
+    }
+
+    @Test
+    void draftByIdHidesOtherTeachersDraftAsNotFound()
+    {
+        long id = insertRow(BINDING_ID, "other draft", "DRAFT", OTHER_TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, false);
+
+        assertThrows(AnnouncementNotFoundException.class,
+                () -> service.getTeacherAnnouncement(id));
+    }
+
+    @Test
+    void updateDraftByAnnouncementIdResolvesBinding()
+    {
+        long id = insertRow(BINDING_ID, "old", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, false);
+
+        CourseAnnouncement updated = service.updateDraft(id, "new", "body", null, null);
+
+        assertEquals("new", titleOf(id));
+        assertEquals("new", updated.getTitle());
+    }
+
+    @Test
+    void publishByAnnouncementIdResolvesBinding()
+    {
+        long id = insertRow(BINDING_ID, "draft", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+
+        CourseAnnouncement published = service.publish(id);
+
+        assertEquals(AnnouncementStatus.PUBLISHED, published.getStatus());
+        assertEquals(AnnouncementStatus.PUBLISHED, statusOf(id));
+    }
+
+    @Test
+    void archiveByAnnouncementIdResolvesBinding()
+    {
+        long id = insertRow(BINDING_ID, "published", "PUBLISHED", OTHER_TEACHER_ID, 90001L);
+        authorizationPort.allow(BINDING_ID, true);
+
+        CourseAnnouncement archived = service.archive(id);
+
+        assertEquals(AnnouncementStatus.ARCHIVED, archived.getStatus());
+        assertEquals(AnnouncementStatus.ARCHIVED, statusOf(id));
+    }
+
+    @Test
     void publishedAnnouncementCanBeReadWithoutPublishPermission()
     {
         long id = insertRow(BINDING_ID, "published", "PUBLISHED", OTHER_TEACHER_ID, 90001L);
@@ -754,6 +822,55 @@ class CourseAnnouncementServiceTest
 
         authorizationPort.allow(BINDING_ID, true);
         assertEquals(2, service.listTeacherAnnouncements(BINDING_ID, AnnouncementStatus.DRAFT).size());
+    }
+
+    @Test
+    void listTeacherAnnouncementsPageReturnsTotalAndRows()
+    {
+        insertRow(BINDING_ID, "one", "DRAFT", TEACHER_ID, null);
+        insertRow(BINDING_ID, "two", "PUBLISHED", TEACHER_ID, 90001L);
+        insertRow(BINDING_ID, "three", "ARCHIVED", TEACHER_ID, 90001L);
+        insertRow(BINDING_ID, "four", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+
+        CourseAnnouncementPage page = service.listTeacherAnnouncementsPage(BINDING_ID, null, 1, 2);
+
+        assertEquals(4, page.total());
+        assertEquals(List.of("one", "two"),
+                page.rows().stream().map(CourseAnnouncement::getTitle).toList());
+    }
+
+    @Test
+    void listTeacherAnnouncementsPageReturnsEmptyRowsBeyondLastPage()
+    {
+        insertRow(BINDING_ID, "one", "DRAFT", TEACHER_ID, null);
+        insertRow(BINDING_ID, "two", "DRAFT", TEACHER_ID, null);
+        authorizationPort.allow(BINDING_ID, true);
+
+        CourseAnnouncementPage page = service.listTeacherAnnouncementsPage(BINDING_ID, null, 3, 2);
+
+        assertEquals(2, page.total());
+        assertEquals(List.of(), page.rows());
+    }
+
+    @Test
+    void listTeacherAnnouncementsPageRejectsInvalidPageNum()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.listTeacherAnnouncementsPage(BINDING_ID, null, 0, 10));
+    }
+
+    @Test
+    void listTeacherAnnouncementsPageRejectsInvalidPageSize()
+    {
+        authorizationPort.allow(BINDING_ID, true);
+
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.listTeacherAnnouncementsPage(BINDING_ID, null, 1, 0));
+        assertThrows(AnnouncementValidationException.class,
+                () -> service.listTeacherAnnouncementsPage(BINDING_ID, null, 1, 101));
     }
 
     @Test
@@ -956,6 +1073,29 @@ class CourseAnnouncementServiceTest
                 throw dataAccessFailure;
             }
             return delegate.selectTeacherVisibleByBindingId(bindingId, status, userId, canReadAllDrafts);
+        }
+
+        @Override
+        public long countTeacherVisibleByBindingId(Long bindingId,
+                AnnouncementStatus status, Long userId, boolean canReadAllDrafts)
+        {
+            if (failReadsWithDataAccess)
+            {
+                throw dataAccessFailure;
+            }
+            return delegate.countTeacherVisibleByBindingId(bindingId, status, userId, canReadAllDrafts);
+        }
+
+        @Override
+        public List<CourseAnnouncement> selectTeacherVisibleByBindingIdPage(Long bindingId,
+                AnnouncementStatus status, Long userId, boolean canReadAllDrafts, long offset, int limit)
+        {
+            if (failReadsWithDataAccess)
+            {
+                throw dataAccessFailure;
+            }
+            return delegate.selectTeacherVisibleByBindingIdPage(
+                    bindingId, status, userId, canReadAllDrafts, offset, limit);
         }
 
         @Override

@@ -191,6 +191,40 @@ class CourseAnnouncementMapperTest
     }
 
     @Test
+    void countTeacherVisibleByBindingIdMatchesVisibilityRules()
+    {
+        try (SqlSession session = sqlSessionFactory.openSession())
+        {
+            CourseAnnouncementMapper mapper = session.getMapper(CourseAnnouncementMapper.class);
+
+            assertEquals(4, mapper.countTeacherVisibleByBindingId(100L, null, 90001L, false));
+            assertEquals(3, mapper.countTeacherVisibleByBindingId(100L, null, 90002L, false));
+            assertEquals(4, mapper.countTeacherVisibleByBindingId(100L, null, 90002L, true));
+            assertEquals(3, mapper.countTeacherVisibleByBindingId(
+                    100L, AnnouncementStatus.PUBLISHED, 90001L, false));
+        }
+    }
+
+    @Test
+    void pageTeacherVisibleByBindingIdAppliesStableOrderAndLimits()
+    {
+        try (SqlSession session = sqlSessionFactory.openSession())
+        {
+            CourseAnnouncementMapper mapper = session.getMapper(CourseAnnouncementMapper.class);
+
+            assertEquals(List.of(4L, 3L), mapper
+                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 0, 2)
+                    .stream().map(CourseAnnouncement::getId).toList());
+            assertEquals(List.of(2L, 1L), mapper
+                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 2, 2)
+                    .stream().map(CourseAnnouncement::getId).toList());
+            assertEquals(List.of(), mapper
+                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 4, 2)
+                    .stream().map(CourseAnnouncement::getId).toList());
+        }
+    }
+
+    @Test
     void insertDraftPersistsDraftAndGeneratedId()
     {
         CourseAnnouncement announcement = new CourseAnnouncement();

@@ -1,5 +1,7 @@
 package com.ruoyi.education.course.web;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,9 +19,15 @@ import com.ruoyi.education.course.exception.AnnouncementException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AnnouncementExceptionHandler
 {
+    private static final Logger log = LoggerFactory.getLogger(AnnouncementExceptionHandler.class);
+
     @ExceptionHandler(AnnouncementException.class)
     public AjaxResult handleAnnouncementException(AnnouncementException e)
     {
+        if (e.getCode() >= 500)
+        {
+            log.error("公告接口服务端异常: code={}", e.getCode(), e);
+        }
         return AjaxResult.error(e.getCode(), e.getMessage());
     }
 }

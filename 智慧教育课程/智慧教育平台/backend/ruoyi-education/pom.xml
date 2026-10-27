@@ -35,6 +35,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- 仅用于 MockMvc 测试，生产运行由 ruoyi-admin 的 Web 依赖提供 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- 仅用于测试的内存数据库，不连接项目数据库 -->
         <dependency>
             <groupId>com.h2database</groupId>
