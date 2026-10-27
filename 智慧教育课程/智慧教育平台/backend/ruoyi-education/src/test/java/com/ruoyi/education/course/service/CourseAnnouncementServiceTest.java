@@ -1100,6 +1100,19 @@ class CourseAnnouncementServiceTest
         }
 
         @Override
+        public long countVisibleByBindingIds(List<Long> bindingIds, LocalDateTime at)
+        {
+            return delegate.countVisibleByBindingIds(bindingIds, at);
+        }
+
+        @Override
+        public List<CourseAnnouncement> selectVisibleByBindingIdsPage(List<Long> bindingIds,
+                LocalDateTime at, long offset, int limit)
+        {
+            return delegate.selectVisibleByBindingIdsPage(bindingIds, at, offset, limit);
+        }
+
+        @Override
         public int insertDraft(CourseAnnouncement announcement)
         {
             if (dataAccessFailure != null)

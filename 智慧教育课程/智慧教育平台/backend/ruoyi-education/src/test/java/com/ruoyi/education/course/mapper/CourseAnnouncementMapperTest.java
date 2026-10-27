@@ -231,6 +231,41 @@ class CourseAnnouncementMapperTest
     }
 
     @Test
+    void countVisibleByBindingIdsAppliesVisibilityAndBindingScope()
+    {
+        try (SqlSession session = sqlSessionFactory.openSession())
+        {
+            CourseAnnouncementMapper mapper = session.getMapper(CourseAnnouncementMapper.class);
+
+            assertEquals(1, mapper.countVisibleByBindingIds(List.of(100L), NOW));
+            assertEquals(2, mapper.countVisibleByBindingIds(List.of(100L, 200L), NOW));
+            assertEquals(1, mapper.countVisibleByBindingIds(List.of(200L), NOW));
+            assertEquals(0, mapper.countVisibleByBindingIds(List.of(300L), NOW));
+        }
+    }
+
+    @Test
+    void selectVisibleByBindingIdsPageUsesOpenOrderAndSummaryFields()
+    {
+        try (SqlSession session = sqlSessionFactory.openSession())
+        {
+            CourseAnnouncementMapper mapper = session.getMapper(CourseAnnouncementMapper.class);
+
+            List<CourseAnnouncement> firstPage = mapper
+                    .selectVisibleByBindingIdsPage(List.of(100L, 200L), NOW, 0, 1);
+            assertEquals(List.of(5L),
+                    firstPage.stream().map(CourseAnnouncement::getId).toList());
+            firstPage.forEach(row -> assertNull(row.getBody()));
+
+            List<CourseAnnouncement> secondPage = mapper
+                    .selectVisibleByBindingIdsPage(List.of(100L, 200L), NOW, 1, 1);
+            assertEquals(List.of(1L),
+                    secondPage.stream().map(CourseAnnouncement::getId).toList());
+            secondPage.forEach(row -> assertNull(row.getBody()));
+        }
+    }
+
+    @Test
     void insertDraftPersistsDraftAndGeneratedId()
     {
         CourseAnnouncement announcement = new CourseAnnouncement();
