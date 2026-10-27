@@ -50,6 +50,21 @@ public interface CourseAnnouncementMapper
             @Param("canReadAllDrafts") boolean canReadAllDrafts);
 
     /**
+     * 统计教师可见公告总数，条件与列表查询一致。
+     */
+    long countTeacherVisibleByBindingId(@Param("bindingId") Long bindingId,
+            @Param("status") AnnouncementStatus status, @Param("userId") Long userId,
+            @Param("canReadAllDrafts") boolean canReadAllDrafts);
+
+    /**
+     * 分页查询教师可见公告，按创建时间和 ID 倒序固定排序。
+     */
+    List<CourseAnnouncement> selectTeacherVisibleByBindingIdPage(@Param("bindingId") Long bindingId,
+            @Param("status") AnnouncementStatus status, @Param("userId") Long userId,
+            @Param("canReadAllDrafts") boolean canReadAllDrafts,
+            @Param("offset") long offset, @Param("limit") int limit);
+
+    /**
      * 创建公告草稿，状态由 SQL 固定为 DRAFT。
      */
     int insertDraft(CourseAnnouncement announcement);

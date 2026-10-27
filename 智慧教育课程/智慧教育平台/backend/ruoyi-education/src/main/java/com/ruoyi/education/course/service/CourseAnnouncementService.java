@@ -3,7 +3,6 @@ package com.ruoyi.education.course.service;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.beans.factory.ObjectProvider;
@@ -27,6 +26,8 @@ import com.ruoyi.education.course.exception.AnnouncementPersistenceException;
 import com.ruoyi.education.course.exception.AnnouncementStateConflictException;
 import com.ruoyi.education.course.exception.AnnouncementValidationException;
 import com.ruoyi.education.course.mapper.CourseAnnouncementMapper;
+import com.ruoyi.education.course.policy.AnnouncementStatePolicy;
+import com.ruoyi.education.course.support.DatabaseTimePrecision;
 
 /**
  * 教师公告的 M0 业务服务。
@@ -71,8 +72,8 @@ public class CourseAnnouncementService
             LocalDateTime opensAt, LocalDateTime closesAt)
     {
         validateBindingId(bindingId);
-        opensAt = toDatabasePrecision(opensAt);
-        closesAt = toDatabasePrecision(closesAt);
+        opensAt = DatabaseTimePrecision.toMillisecondPrecision(opensAt);
+        closesAt = DatabaseTimePrecision.toMillisecondPrecision(closesAt);
         validateDraftFields(title, body, opensAt, closesAt);
 
         Long userId = currentUserId();
@@ -118,8 +119,8 @@ public class CourseAnnouncementService
     {
         validateBindingId(bindingId);
         validateAnnouncementId(announcementId);
-        opensAt = toDatabasePrecision(opensAt);
-        closesAt = toDatabasePrecision(closesAt);
+        opensAt = DatabaseTimePrecision.toMillisecondPrecision(opensAt);
+        closesAt = DatabaseTimePrecision.toMillisecondPrecision(closesAt);
         validateDraftFields(title, body, opensAt, closesAt);
 
         Long userId = currentUserId();
@@ -162,6 +163,18 @@ public class CourseAnnouncementService
      * 已归档后再发布仍为状态冲突。条件更新 0 行时重新读取区分幂等、
      * 不存在/跨绑定、非法状态和真实并发冲突。
      */
+    /**
+     * HTTP 路径只携带公告 ID 时的编辑入口：先解析公告所属绑定，再复用绑定级校验。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public CourseAnnouncement updateDraft(Long announcementId, String title, String body,
+            LocalDateTime opensAt, LocalDateTime closesAt)
+    {
+        validateAnnouncementId(announcementId);
+        Long bindingId = resolveBindingId(announcementId);
+        return updateDraft(bindingId, announcementId, title, body, opensAt, closesAt);
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public CourseAnnouncement publish(Long bindingId, Long announcementId)
     {
@@ -215,6 +228,17 @@ public class CourseAnnouncementService
      * 草稿归档仍为状态冲突。条件更新 0 行时重新读取区分幂等、
      * 不存在/跨绑定、非法状态和真实并发冲突。
      */
+    /**
+     * HTTP 路径只携带公告 ID 时的发布入口。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public CourseAnnouncement publish(Long announcementId)
+    {
+        validateAnnouncementId(announcementId);
+        Long bindingId = resolveBindingId(announcementId);
+        return publish(bindingId, announcementId);
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public CourseAnnouncement archive(Long bindingId, Long announcementId)
     {
@@ -252,6 +276,50 @@ public class CourseAnnouncementService
         return saved;
     }
 
+    /**
+     * HTTP 路径只携带公告 ID 时的归档入口。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public CourseAnnouncement archive(Long announcementId)
+    {
+        validateAnnouncementId(announcementId);
+        Long bindingId = resolveBindingId(announcementId);
+        return archive(bindingId, announcementId);
+    }
+
+    /**
+     * HTTP 路径只携带公告 ID 时的详情入口。公告不属于当前教师可访问绑定时，
+     * 按不存在处理，避免泄露对象存在性。
+     */
+    @Transactional(readOnly = true)
+    public CourseAnnouncement getTeacherAnnouncement(Long announcementId)
+    {
+        validateAnnouncementId(announcementId);
+        CourseAnnouncement announcement = selectById(announcementId);
+        if (announcement == null)
+        {
+            throw new AnnouncementNotFoundException();
+        }
+
+        Long userId = currentUserId();
+        TeacherAnnouncementAccess access;
+        try
+        {
+            access = requireAccess(announcement.getBindingId(), userId, now());
+        }
+        catch (AnnouncementAccessDeniedException e)
+        {
+            throw new AnnouncementNotFoundException();
+        }
+        if (announcement.getStatus() == AnnouncementStatus.DRAFT
+                && !AnnouncementStatePolicy.canEditDraft(access.authority(), AnnouncementStatus.DRAFT,
+                        announcement.getCreatedByUserId(), userId))
+        {
+            throw new AnnouncementNotFoundException();
+        }
+        return announcement;
+    }
+
     @Transactional(readOnly = true)
     public CourseAnnouncement getTeacherAnnouncement(Long bindingId, Long announcementId)
     {
@@ -263,8 +331,8 @@ public class CourseAnnouncementService
         CourseAnnouncement announcement = loadOwned(bindingId, announcementId);
 
         if (announcement.getStatus() == AnnouncementStatus.DRAFT
-                && !access.authority().canPublish()
-                && !userId.equals(announcement.getCreatedByUserId()))
+                && !AnnouncementStatePolicy.canEditDraft(access.authority(), AnnouncementStatus.DRAFT,
+                        announcement.getCreatedByUserId(), userId))
         {
             throw new AnnouncementNotFoundException();
         }
@@ -280,6 +348,27 @@ public class CourseAnnouncementService
         TeacherAnnouncementAccess access = requireAccess(bindingId, userId, now());
         return selectTeacherVisibleByBindingId(
                 bindingId, status, userId, access.authority().canPublish());
+    }
+
+    @Transactional(readOnly = true)
+    public CourseAnnouncementPage listTeacherAnnouncementsPage(Long bindingId, AnnouncementStatus status,
+            int pageNum, int pageSize)
+    {
+        validateBindingId(bindingId);
+        validatePage(pageNum, pageSize);
+
+        Long userId = currentUserId();
+        TeacherAnnouncementAccess access = requireAccess(bindingId, userId, now());
+        boolean canReadAllDrafts = access.authority().canPublish();
+        long total = countTeacherVisibleByBindingId(bindingId, status, userId, canReadAllDrafts);
+        if (total == 0)
+        {
+            return new CourseAnnouncementPage(0, List.of());
+        }
+
+        long offset = ((long) pageNum - 1) * pageSize;
+        return new CourseAnnouncementPage(total, selectTeacherVisibleByBindingIdPage(
+                bindingId, status, userId, canReadAllDrafts, offset, pageSize));
     }
 
     private TeacherAnnouncementAccess requireAccess(Long bindingId, Long userId, LocalDateTime at)
@@ -322,10 +411,20 @@ public class CourseAnnouncementService
 
     private void requireCanPublish(TeacherAnnouncementAccess access)
     {
-        if (!access.authority().canPublish())
+        if (!AnnouncementStatePolicy.canCreateDraft(access.authority()))
         {
             throw new AnnouncementAccessDeniedException();
         }
+    }
+
+    private Long resolveBindingId(Long announcementId)
+    {
+        CourseAnnouncement announcement = selectById(announcementId);
+        if (announcement == null)
+        {
+            throw new AnnouncementNotFoundException();
+        }
+        return announcement.getBindingId();
     }
 
     private CourseAnnouncement loadOwned(Long bindingId, Long announcementId)
@@ -420,7 +519,7 @@ public class CourseAnnouncementService
 
     private LocalDateTime now()
     {
-        return toDatabasePrecision(LocalDateTime.now(clock));
+        return DatabaseTimePrecision.toMillisecondPrecision(LocalDateTime.now(clock));
     }
 
     private void validateBindingId(Long bindingId)
@@ -436,6 +535,18 @@ public class CourseAnnouncementService
         if (announcementId == null)
         {
             throw new AnnouncementValidationException("announcementId 不能为空");
+        }
+    }
+
+    private void validatePage(int pageNum, int pageSize)
+    {
+        if (pageNum < 1)
+        {
+            throw new AnnouncementValidationException("pageNum 不能小于 1");
+        }
+        if (pageSize < 1 || pageSize > 100)
+        {
+            throw new AnnouncementValidationException("pageSize 必须在 1 到 100 之间");
         }
     }
 
@@ -466,15 +577,6 @@ public class CourseAnnouncementService
         {
             throw new AnnouncementValidationException("关闭时间必须晚于开始时间");
         }
-    }
-
-    private static LocalDateTime toDatabasePrecision(LocalDateTime value)
-    {
-        if (value == null)
-        {
-            return null;
-        }
-        return value.plusNanos(500_000).truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static boolean sameDraftFields(CourseAnnouncement announcement, String title, String body,
@@ -527,6 +629,34 @@ public class CourseAnnouncementService
         {
             return announcementMapper.selectTeacherVisibleByBindingId(
                     bindingId, status, userId, canReadAllDrafts);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告列表读取失败", e);
+        }
+    }
+
+    private long countTeacherVisibleByBindingId(Long bindingId, AnnouncementStatus status,
+            Long userId, boolean canReadAllDrafts)
+    {
+        try
+        {
+            return announcementMapper.countTeacherVisibleByBindingId(
+                    bindingId, status, userId, canReadAllDrafts);
+        }
+        catch (DataAccessException e)
+        {
+            throw persistenceFailure("公告列表统计失败", e);
+        }
+    }
+
+    private List<CourseAnnouncement> selectTeacherVisibleByBindingIdPage(Long bindingId,
+            AnnouncementStatus status, Long userId, boolean canReadAllDrafts, long offset, int limit)
+    {
+        try
+        {
+            return announcementMapper.selectTeacherVisibleByBindingIdPage(
+                    bindingId, status, userId, canReadAllDrafts, offset, limit);
         }
         catch (DataAccessException e)
         {
