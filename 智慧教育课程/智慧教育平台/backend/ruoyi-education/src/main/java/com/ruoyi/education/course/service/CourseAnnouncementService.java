@@ -3,7 +3,6 @@ package com.ruoyi.education.course.service;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,6 +27,7 @@ import com.ruoyi.education.course.exception.AnnouncementStateConflictException;
 import com.ruoyi.education.course.exception.AnnouncementValidationException;
 import com.ruoyi.education.course.mapper.CourseAnnouncementMapper;
 import com.ruoyi.education.course.policy.AnnouncementStatePolicy;
+import com.ruoyi.education.course.support.DatabaseTimePrecision;
 
 /**
  * 教师公告的 M0 业务服务。
@@ -72,8 +72,8 @@ public class CourseAnnouncementService
             LocalDateTime opensAt, LocalDateTime closesAt)
     {
         validateBindingId(bindingId);
-        opensAt = toDatabasePrecision(opensAt);
-        closesAt = toDatabasePrecision(closesAt);
+        opensAt = DatabaseTimePrecision.toMillisecondPrecision(opensAt);
+        closesAt = DatabaseTimePrecision.toMillisecondPrecision(closesAt);
         validateDraftFields(title, body, opensAt, closesAt);
 
         Long userId = currentUserId();
@@ -119,8 +119,8 @@ public class CourseAnnouncementService
     {
         validateBindingId(bindingId);
         validateAnnouncementId(announcementId);
-        opensAt = toDatabasePrecision(opensAt);
-        closesAt = toDatabasePrecision(closesAt);
+        opensAt = DatabaseTimePrecision.toMillisecondPrecision(opensAt);
+        closesAt = DatabaseTimePrecision.toMillisecondPrecision(closesAt);
         validateDraftFields(title, body, opensAt, closesAt);
 
         Long userId = currentUserId();
@@ -519,7 +519,7 @@ public class CourseAnnouncementService
 
     private LocalDateTime now()
     {
-        return toDatabasePrecision(LocalDateTime.now(clock));
+        return DatabaseTimePrecision.toMillisecondPrecision(LocalDateTime.now(clock));
     }
 
     private void validateBindingId(Long bindingId)
@@ -577,15 +577,6 @@ public class CourseAnnouncementService
         {
             throw new AnnouncementValidationException("关闭时间必须晚于开始时间");
         }
-    }
-
-    private static LocalDateTime toDatabasePrecision(LocalDateTime value)
-    {
-        if (value == null)
-        {
-            return null;
-        }
-        return value.plusNanos(500_000).truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static boolean sameDraftFields(CourseAnnouncement announcement, String title, String body,

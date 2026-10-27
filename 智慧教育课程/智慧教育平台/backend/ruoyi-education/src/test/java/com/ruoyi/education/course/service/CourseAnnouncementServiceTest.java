@@ -838,6 +838,7 @@ class CourseAnnouncementServiceTest
         assertEquals(4, page.total());
         assertEquals(List.of("one", "two"),
                 page.rows().stream().map(CourseAnnouncement::getTitle).toList());
+        page.rows().forEach(row -> assertNull(row.getBody()));
     }
 
     @Test

@@ -85,9 +85,13 @@ public final class TeacherAnnouncementRequestParser
 
     public static LocalDateTime optionalTime(String value, String fieldName)
     {
-        if (value == null || value.isBlank())
+        if (value == null)
         {
             return null;
+        }
+        if (value.isBlank())
+        {
+            throw new AnnouncementValidationException(fieldName + " 不能为空字符串");
         }
         try
         {

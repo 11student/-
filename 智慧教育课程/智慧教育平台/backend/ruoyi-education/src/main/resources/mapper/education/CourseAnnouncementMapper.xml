@@ -23,6 +23,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         from edu_course_announcement
     </sql>
 
+    <sql id="selectAnnouncementSummaryVo">
+        select id, binding_id, title, status, opens_at, closes_at,
+               published_by_user_id, created_by_user_id, created_at
+        from edu_course_announcement
+    </sql>
+
     <select id="selectById" resultMap="CourseAnnouncementResult" flushCache="true">
         <include refid="selectAnnouncementVo"/>
         where id = #{id}
@@ -89,7 +95,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </select>
 
     <select id="selectTeacherVisibleByBindingIdPage" resultMap="CourseAnnouncementResult">
-        <include refid="selectAnnouncementVo"/>
+        <include refid="selectAnnouncementSummaryVo"/>
         <include refid="teacherVisibleCondition"/>
         order by created_at desc, id desc
         limit #{limit} offset #{offset}

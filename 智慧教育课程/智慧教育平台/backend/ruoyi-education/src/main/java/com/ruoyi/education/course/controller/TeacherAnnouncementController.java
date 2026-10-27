@@ -2,7 +2,6 @@ package com.ruoyi.education.course.controller;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +30,7 @@ import com.ruoyi.education.course.dto.TeacherAnnouncementUpdateRequest;
 import com.ruoyi.education.course.exception.AnnouncementValidationException;
 import com.ruoyi.education.course.service.CourseAnnouncementPage;
 import com.ruoyi.education.course.service.CourseAnnouncementService;
+import com.ruoyi.education.course.support.DatabaseTimePrecision;
 
 /**
  * 教师公告 HTTP 接口。
@@ -161,6 +161,6 @@ public class TeacherAnnouncementController extends BaseController
 
     private LocalDateTime nowForVisibility()
     {
-        return LocalDateTime.now(clock).truncatedTo(ChronoUnit.MILLIS);
+        return DatabaseTimePrecision.toMillisecondPrecision(LocalDateTime.now(clock));
     }
 }

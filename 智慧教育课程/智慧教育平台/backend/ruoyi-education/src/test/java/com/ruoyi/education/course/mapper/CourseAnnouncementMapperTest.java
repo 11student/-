@@ -212,12 +212,18 @@ class CourseAnnouncementMapperTest
         {
             CourseAnnouncementMapper mapper = session.getMapper(CourseAnnouncementMapper.class);
 
-            assertEquals(List.of(4L, 3L), mapper
-                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 0, 2)
-                    .stream().map(CourseAnnouncement::getId).toList());
-            assertEquals(List.of(2L, 1L), mapper
-                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 2, 2)
-                    .stream().map(CourseAnnouncement::getId).toList());
+            List<CourseAnnouncement> firstPage = mapper
+                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 0, 2);
+            assertEquals(List.of(4L, 3L),
+                    firstPage.stream().map(CourseAnnouncement::getId).toList());
+            firstPage.forEach(row -> assertNull(row.getBody()));
+
+            List<CourseAnnouncement> secondPage = mapper
+                    .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 2, 2);
+            assertEquals(List.of(2L, 1L),
+                    secondPage.stream().map(CourseAnnouncement::getId).toList());
+            secondPage.forEach(row -> assertNull(row.getBody()));
+
             assertEquals(List.of(), mapper
                     .selectTeacherVisibleByBindingIdPage(100L, null, 90001L, false, 4, 2)
                     .stream().map(CourseAnnouncement::getId).toList());

@@ -51,6 +51,9 @@ class TeacherAnnouncementControllerTest
     private static final Clock CLOCK =
             Clock.fixed(Instant.parse("2026-10-24T12:00:00Z"), ZoneOffset.UTC);
 
+    private static final Clock SUB_MILLISECOND_CLOCK =
+            Clock.fixed(Instant.parse("2026-10-24T12:00:00.000600Z"), ZoneOffset.UTC);
+
     private CourseAnnouncementService service;
 
     private MockMvc mockMvc;
@@ -59,9 +62,7 @@ class TeacherAnnouncementControllerTest
     void setUp()
     {
         service = mock(CourseAnnouncementService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new TeacherAnnouncementController(service, CLOCK))
-                .setControllerAdvice(new AnnouncementExceptionHandler(), new TestServiceExceptionAdvice())
-                .build();
+        mockMvc = mockMvc(CLOCK);
     }
 
     @Test
@@ -235,6 +236,51 @@ class TeacherAnnouncementControllerTest
     }
 
     @Test
+    void visibilityUsesRoundedNowAtOpenBoundary() throws Exception
+    {
+        CourseAnnouncement published = announcement(AnnouncementStatus.PUBLISHED);
+        published.setOpensAt(LocalDateTime.of(2026, 10, 24, 12, 0, 0, 1_000_000));
+        when(service.getTeacherAnnouncement(20001L)).thenReturn(published);
+
+        mockMvc(SUB_MILLISECOND_CLOCK).perform(get("/education/teacher/announcements/20001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visibilityState").value("OPEN"));
+    }
+
+    @Test
+    void visibilityUsesRoundedNowAtCloseBoundary() throws Exception
+    {
+        CourseAnnouncement published = announcement(AnnouncementStatus.PUBLISHED);
+        published.setOpensAt(LocalDateTime.of(2026, 10, 24, 12, 0, 0));
+        published.setClosesAt(LocalDateTime.of(2026, 10, 24, 12, 0, 0, 1_000_000));
+        when(service.getTeacherAnnouncement(20001L)).thenReturn(published);
+
+        mockMvc(SUB_MILLISECOND_CLOCK).perform(get("/education/teacher/announcements/20001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visibilityState").value("CLOSED"));
+    }
+
+    @Test
+    void blankTimeStringsReturn400OnCreateAndUpdate() throws Exception
+    {
+        String empty = "\"\"";
+        String blank = "\"   \"";
+
+        assertBadRequest(post("/education/teacher/announcements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createJson(empty, "null")));
+        assertBadRequest(post("/education/teacher/announcements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createJson("null", blank)));
+        assertBadRequest(put("/education/teacher/announcements/20001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateJson(empty, "null")));
+        assertBadRequest(put("/education/teacher/announcements/20001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateJson("null", blank)));
+    }
+
+    @Test
     void malformedJsonReturns400() throws Exception
     {
         mockMvc.perform(post("/education/teacher/announcements")
@@ -290,6 +336,25 @@ class TeacherAnnouncementControllerTest
                 "education:announcement:list");
         assertPermission("get", new Class<?>[] { String.class },
                 "education:announcement:list");
+    }
+
+    private MockMvc mockMvc(Clock clock)
+    {
+        return MockMvcBuilders.standaloneSetup(new TeacherAnnouncementController(service, clock))
+                .setControllerAdvice(new AnnouncementExceptionHandler(), new TestServiceExceptionAdvice())
+                .build();
+    }
+
+    private String createJson(String opensAt, String closesAt)
+    {
+        return "{\"bindingId\":\"10001\",\"title\":\"title\",\"body\":\"body\","
+                + "\"opensAt\":" + opensAt + ",\"closesAt\":" + closesAt + "}";
+    }
+
+    private String updateJson(String opensAt, String closesAt)
+    {
+        return "{\"title\":\"title\",\"body\":\"body\","
+                + "\"opensAt\":" + opensAt + ",\"closesAt\":" + closesAt + "}";
     }
 
     private void assertDetailError(RuntimeException error, int code) throws Exception
