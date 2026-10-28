@@ -42,6 +42,18 @@ public interface CourseAnnouncementMapper
     CourseAnnouncement selectVisibleById(@Param("id") Long id, @Param("now") LocalDateTime now);
 
     /**
+     * 统计多个绑定下当前对学生可见的公告。conditions 与分页查询共用。
+     */
+    long countVisibleByBindingIds(@Param("bindingIds") List<Long> bindingIds,
+            @Param("at") LocalDateTime at);
+
+    /**
+     * 分页查询多个绑定下当前对学生可见的公告，只返回摘要字段。
+     */
+    List<CourseAnnouncement> selectVisibleByBindingIdsPage(@Param("bindingIds") List<Long> bindingIds,
+            @Param("at") LocalDateTime at, @Param("offset") long offset, @Param("limit") int limit);
+
+    /**
      * 查询教师可见公告。无发布权限时只返回本人创建的草稿，
      * 已发布和已归档公告仍按当前任课关系返回。
      */

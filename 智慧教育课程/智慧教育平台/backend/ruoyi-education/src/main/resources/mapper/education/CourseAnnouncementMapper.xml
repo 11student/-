@@ -29,6 +29,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         from edu_course_announcement
     </sql>
 
+    <sql id="selectStudentAnnouncementSummaryVo">
+        select id, binding_id, title, opens_at, closes_at, created_at
+        from edu_course_announcement
+    </sql>
+
     <select id="selectById" resultMap="CourseAnnouncementResult" flushCache="true">
         <include refid="selectAnnouncementVo"/>
         where id = #{id}
@@ -68,6 +73,32 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and opens_at is not null
           and opens_at &lt;= #{now}
           and (closes_at is null or closes_at &gt; #{now})
+    </select>
+
+    <sql id="studentVisibleCondition">
+        <where>
+            binding_id in
+            <foreach collection="bindingIds" item="bindingId" open="(" separator="," close=")">
+                #{bindingId}
+            </foreach>
+            and status = 'PUBLISHED'
+            and opens_at is not null
+            and opens_at &lt;= #{at}
+            and (closes_at is null or closes_at &gt; #{at})
+        </where>
+    </sql>
+
+    <select id="countVisibleByBindingIds" resultType="long">
+        select count(*)
+        from edu_course_announcement
+        <include refid="studentVisibleCondition"/>
+    </select>
+
+    <select id="selectVisibleByBindingIdsPage" resultMap="CourseAnnouncementResult">
+        <include refid="selectStudentAnnouncementSummaryVo"/>
+        <include refid="studentVisibleCondition"/>
+        order by opens_at desc, id desc
+        limit #{limit} offset #{offset}
     </select>
 
     <sql id="teacherVisibleCondition">
